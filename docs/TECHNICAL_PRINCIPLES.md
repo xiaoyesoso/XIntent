@@ -4,14 +4,14 @@
 >
 > Related: [HTTP API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md) | [README](https://github.com/xiaoyesoso/XIntent/blob/main/README.md)
 
-This document is a **technical blog** — not a dry reference manual. Every design choice is explained with real-world analogies, concrete examples, and the "why" behind the "what". If you're building an Agent and wondering why your intent recognition feels fragile, this is the document for you.
+This is a technical blog, not a dry reference manual. Every design choice gets explained with real-world analogies, concrete examples, and the 「why」 behind the 「what」. If you're building an Agent and your intent recognition feels fragile, you're in the right place.
 
-The XIntent framework has two modules, each addressing a fundamental question:
+The XIntent framework has two modules, each tackling a fundamental question.
 
-- **User Input Normalization** (sections 1-13): *Why does the Agent misunderstand what the user says?* — Because natural language is messy. This module cleans it up before intent recognition even runs.
-- **Three-Layer Intent Recognition** (sections 14-22): *Why does the Agent pick the wrong intent?* — Because a single LLM call is neither fast enough nor reliable enough. This module uses a waterfall architecture to balance cost, speed, and accuracy.
-- **Accuracy Improvements** (D17-D25): *How do you push accuracy from 85% to 99%?* — Eight optional extensions, each addressing a specific failure mode.
-- **Interview Insights** (D26-D31): *How do you talk about this system in an interview?* — Six design decisions born from real interview feedback, covering evidence grading, boundary principles, and structured output contracts.
+- **User Input Normalization** (sections 1-13) asks, *why does the Agent misunderstand what the user says?* Natural language is messy. This module cleans it up before intent recognition even runs.
+- **Three-Layer Intent Recognition** (sections 14-22) asks, *why does the Agent pick the wrong intent?* A single LLM call is neither fast enough nor reliable enough. This module uses a waterfall architecture to balance cost, speed, and accuracy.
+- **Accuracy Improvements** (D17-D25) asks, *how do you push accuracy from 85% to 99%?* Eight optional extensions, each addressing a specific failure mode we hit in production.
+- **Interview Insights** (D26-D31) asks, *how do you talk about this system in an interview?* Six design decisions born from real interview feedback, covering evidence grading, boundary principles, and structured output contracts.
 
 For each principle, the **service interfaces** and **code implementations** are marked.
 
@@ -58,22 +58,22 @@ For each principle, the **service interfaces** and **code implementations** are 
 
 ### The Real-World Challenge
 
-In real-world scenarios, user input is highly casual-just like everyday speech. Users produce broken sentences, inversions, pronouns, abbreviations, and even "slang." This is not a user problem; it's the fundamental nature of natural language: **natural language is redundant, ambiguous, and context-dependent**.
+Here's something I've noticed building Agents. In real-world scenarios, user input is highly casual, just like everyday speech. Users produce broken sentences, inversions, pronouns, abbreviations, and even slang. This is not a user problem. It's the fundamental nature of natural language. **Natural language is redundant, ambiguous, and context-dependent**.
 
-Traditional software constrains user input through UI (forms, dropdowns, validation rules). Agents, however, directly receive natural language text, losing the "input normalization" protection that the UI layer provides. This leads to:
+Traditional software constrains user input through UI, forms, dropdowns, validation rules. Agents, however, directly receive natural language text. They lose the input normalization protection that the UI layer provides. This leads to several problems that anyone who has built an Agent will recognize.
 
-- **Intent recognition failure**: Missing subjects cause intent drift ("市场占有率多少？" - whose market share?)
-- **Context breakdown**: Cross-turn anaphora cannot be resolved (what does "第二个" in turn 3 refer to?)
-- **Parameter drift**: Unquantified adjectives cause uncontrolled tool call parameters ("性价比" interpreted as "cheap")
-- **Fact fabrication**: LLM "hallucinations" invent non-existent information
+- **Intent recognition failure** happens when missing subjects cause intent drift. 「市场占有率多少？」, whose market share?
+- **Context breakdown** happens when cross-turn anaphora cannot be resolved. What does 「第二个」 in turn 3 refer to?
+- **Parameter drift** happens when unquantified adjectives cause uncontrolled tool call parameters. 「性价比」 interpreted as 「cheap」.
+- **Fact fabrication** happens when LLM hallucinations invent non-existent information.
 
-### Analogy: Requirements Analysis
+### The Requirements Analysis Analogy
 
-User input normalization is the Agent equivalent of "requirements analysis" in traditional software engineering. In traditional SE, requirements analysis is the foundation for all subsequent design, development, and testing; in Agents, input normalization is the foundation for intent recognition, tool calling, and final output. **If the input isn't normalized, everything downstream is wasted effort**.
+Think of user input normalization as the Agent equivalent of requirements analysis in traditional software engineering. In traditional SE, requirements analysis is the foundation for all subsequent design, development, and testing. In Agents, input normalization is the foundation for intent recognition, tool calling, and final output. **If the input isn't normalized, everything downstream is wasted effort**.
 
 ### Implementation
 
-The entire framework is exposed as a service through `POST /normalize`. The user passes raw text, and the service returns a structured normalization result:
+The entire framework is exposed as a service through `POST /normalize`. The user passes raw text, and the service returns a structured normalization result.
 
 ```bash
 curl -X POST http://localhost:8000/normalize \
@@ -81,61 +81,61 @@ curl -X POST http://localhost:8000/normalize \
   -d '{"raw_input": "第二个适合生产吗？", "session_id": "s1", "user_id": "u1", "turn": 2}'
 ```
 
-- **Service entry**: `POST /normalize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#3-post-normalize--user-input-normalization))
-- **Orchestrator**: `NormalizationPipeline` (`src/user_input_normalization/pipeline.py`)
-- **Server startup**: `python -m user_input_normalization.server` (`src/user_input_normalization/server.py`)
+- The service entry is `POST /normalize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#3-post-normalize--user-input-normalization))
+- The orchestrator is `NormalizationPipeline` in `src/user_input_normalization/pipeline.py`
+- To start the server, run `python -m user_input_normalization.server` from `src/user_input_normalization/server.py`
 
 ---
 
 ## 2. Linguistic Foundations of the Six Input Problem Categories
 
-The framework categorizes user input problems into six types, each with corresponding linguistic/cognitive science foundations:
+The framework categorizes user input problems into six types, each with corresponding linguistic and cognitive science foundations. Let me walk you through them.
 
 ### 2.1 Anaphora
 
-**Linguistic basis**: "Anaphora Resolution" in pragmatics. Pronouns have no fixed meaning; their referents depend on context.
+The linguistic basis here is Anaphora Resolution in pragmatics. Pronouns have no fixed meaning, their referents depend entirely on context.
 
-**Typical manifestations**: Ordinal anaphora ("第二个适合生产吗？"), temporal anaphora ("刚才那个项目怎么包装？"), attribute anaphora ("看樱花的那个地方")
+Typical manifestations include ordinal anaphora (「第二个适合生产吗？」), temporal anaphora (「刚才那个项目怎么包装？」), and attribute anaphora (「看樱花的那个地方」).
 
-**Challenge**: Resolution requires recalling historical dialogue details; short-term memory fails across multi-turn, long time-span conversations.
+The challenge is that resolution requires recalling historical dialogue details. Short-term memory fails across multi-turn, long time-span conversations.
 
 ### 2.2 Missing (Ellipsis)
 
-**Linguistic basis**: Ellipsis is a common economy principle in natural language-speakers omit parts that can be inferred from shared context.
+The linguistic basis is that ellipsis is a common economy principle in natural language. Speakers omit parts that can be inferred from shared context.
 
-**Typical manifestations**: Missing subject ("市场占有率多少？"), missing object ("帮我优化一下。"), missing constraints ("推荐一条裤子。")
+Typical manifestations include missing subject (「市场占有率多少？」), missing object (「帮我优化一下。」), and missing constraints (「推荐一条裤子。」).
 
 ### 2.3 Expression
 
-**Linguistic basis**: The fundamental difference between spoken and written language. Speech is linear, jumping, and self-correcting; writing is structured and complete.
+The linguistic basis is the fundamental difference between spoken and written language. Speech is linear, jumping, and self-correcting. Writing is structured and complete.
 
-**Typical manifestations**: Disordered word order ("这个不太行，换个更像面试能讲的。"), mid-stream correction ("不是，我说的是另一个。")
+Typical manifestations include disordered word order (「这个不太行，换个更像面试能讲的。」) and mid-stream correction (「不是，我说的是另一个。」).
 
 ### 2.4 Semantic
 
-**Linguistic basis**: "Polysemy" and "Jargon" in semantics. The same word has different meanings in different domains.
+The linguistic basis is Polysemy and Jargon in semantics. The same word has different meanings in different domains.
 
-**Typical manifestations**: Abbreviations (RAG, CRM), slang (抓手、赋能、闭环、不够 P8), synonyms (知识库 / 检索增强 / RAG)
+Typical manifestations include abbreviations (RAG, CRM), slang (抓手、赋能、闭环、不够 P8), and synonyms (知识库 / 检索增强 / RAG).
 
 ### 2.5 Subjective
 
-**Linguistic basis**: Subjectivity and Appraisal Theory. Judgment word meanings depend on personal preferences, scenarios, and standards.
+The linguistic basis is Subjectivity and Appraisal Theory. Judgment word meanings depend on personal preferences, scenarios, and standards.
 
-**Typical manifestations**: "哪个最有性价比？", "再高级一点。"
+Typical manifestations include 「哪个最有性价比？」 and 「再高级一点。」
 
-**Challenge**: Subjective judgment words must be converted to quantifiable parameters, otherwise tool calls are uncontrollable. Many Agents handle this crudely: "性价比高" directly equals "low price," ignoring quality, performance, brand, and after-sales.
+The challenge here is real. Subjective judgment words must be converted to quantifiable parameters, otherwise tool calls are uncontrollable. Many Agents handle this crudely. 「性价比高」 directly equals 「low price」, ignoring quality, performance, brand, and after-sales. That's a big problem.
 
 ### 2.6 External Fact
 
-**Linguistic basis**: Expressions referring to external world states, whose truth values depend on real-time data.
+The linguistic basis is expressions referring to external world states, whose truth values depend on real-time data.
 
-**Typical manifestations**: "最近哪个框架更火？", "现在最便宜的是哪个？"
+Typical manifestations include 「最近哪个框架更火？」 and 「现在最便宜的是哪个？」
 
-**Challenge**: Cannot be completed in the pre-processing stage; must rely on tool calls returning real-time data. Cannot be fabricated.
+The challenge is that this cannot be completed in the pre-processing stage. It must rely on tool calls returning real-time data. Cannot be fabricated.
 
 ### Implementation
 
-Classification results are returned via the `classification_tags` field of the API response (array, multi-label supported):
+Classification results are returned via the `classification_tags` field of the API response, as an array with multi-label support.
 
 ```json
 {
@@ -143,10 +143,10 @@ Classification results are returned via the `classification_tags` field of the A
 }
 ```
 
-- **API response field**: `classification_tags` (see [API Reference - classification_tags possible values](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#classification_tags-possible-values))
-- **Classifier**: `InputClassifier` (`src/user_input_normalization/classification/classifier.py`)
-- **Classification rules**: `CLASSIFICATION_RULES` (`src/user_input_normalization/classification/rules.py`, with 82 semantic rules + 80 known terms)
-- **Routing logic**: `SUBJECTIVE`/`EXTERNAL_FACT` -> `deep` stage; others -> `pre` stage
+- The API response field is `classification_tags` (see [API Reference - classification_tags possible values](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#classification_tags-possible-values))
+- The classifier is `InputClassifier` in `src/user_input_normalization/classification/classifier.py`
+- Classification rules live in `CLASSIFICATION_RULES` in `src/user_input_normalization/classification/rules.py`, with 82 semantic rules and 80 known terms
+- Routing logic sends `SUBJECTIVE`/`EXTERNAL_FACT` to the `deep` stage, others to the `pre` stage
 
 ---
 
@@ -154,14 +154,15 @@ Classification results are returned via the `classification_tags` field of the A
 
 ### The Core Contradiction
 
-User input normalization has a fundamental contradiction:
-- **Some problems** (like "第二个" anaphora) can be solved immediately before intent recognition
-- **Some problems** (like "现在最便宜的" external facts) can only be solved after tool calls
+Here's the tension at the heart of input normalization. Some problems, like 「第二个」 anaphora, can be solved immediately before intent recognition. Other problems, like 「现在最便宜的」 external facts, can only be solved after tool calls return real-time data.
 
-If everything is done in pre-processing: cross-time anaphora and external facts cannot be handled.
-If everything is deferred to the ReAct loop: simple anaphora also waits for tool calls, adding unnecessary latency.
+If you do everything in pre-processing, cross-time anaphora and external facts cannot be handled. If you defer everything to the ReAct loop, simple anaphora also waits for tool calls, adding unnecessary latency.
 
-### Solution: Two-Stage Division of Labor
+Neither extreme works. You need a middle ground.
+
+### Two-Stage Division of Labor
+
+The solution is to split normalization into two stages with a clear division of labor.
 
 ```
 User Input -> [pre-normalization] -> Intent Recognition -> [deep-normalization] -> Output
@@ -176,7 +177,7 @@ User Input -> [pre-normalization] -> Intent Recognition -> [deep-normalization] 
 
 ### Implementation
 
-The `observation` parameter of the API request controls whether to enter the deep stage, and the `stage_reached` field of the response indicates the actual stage reached:
+The `observation` parameter of the API request controls whether to enter the deep stage, and the `stage_reached` field of the response indicates the actual stage reached.
 
 ```bash
 # pre stage only (no observation)
@@ -191,27 +192,29 @@ curl -X POST http://localhost:8000/normalize \
 # -> "stage_reached": "deep"
 ```
 
-- **API request field**: `observation` (optional, passing tool return data triggers the deep stage)
-- **API response field**: `stage_reached` (`"pre"` or `"deep"`)
-- **Orchestrator**: `NormalizationPipeline.process()` (`src/user_input_normalization/pipeline.py`)
-- **pre stage**: `PreNormalizer` (`src/user_input_normalization/pre_normalization/normalizer.py`)
-- **deep stage**: `DeepNormalizer` (`src/user_input_normalization/deep_normalization/normalizer.py`)
+- The API request field is `observation`, optional, passing tool return data triggers the deep stage
+- The API response field is `stage_reached`, either `"pre"` or `"deep"`
+- The orchestrator is `NormalizationPipeline.process()` in `src/user_input_normalization/pipeline.py`
+- The pre stage lives in `PreNormalizer` in `src/user_input_normalization/pre_normalization/normalizer.py`
+- The deep stage lives in `DeepNormalizer` in `src/user_input_normalization/deep_normalization/normalizer.py`
 
 ---
 
 ## 4. Responsibility Boundary: Why LLMs "Over-Step"
 
-### The LLM "Over-Autonomy" Problem
+### The LLM Over-Autonomy Problem
 
-LLMs are trained to be "helpful assistants," tending to complete user requests as much as possible. Without constraints, it will do input normalization, intent recognition, and answering all at once:
+LLMs are trained to be helpful assistants. They want to complete every user request as thoroughly as possible. That sounds great until you realize what happens in practice. Without constraints, the LLM will happily do input normalization, intent recognition, AND answer the question all at once.
 
-- User asks "市场占有率多少？", LLM directly fabricates a number to answer
-- User asks "帮我推荐裤子", LLM directly recommends products
-- User asks "现在最便宜的", LLM fabricates real-time prices
+- User asks 「市场占有率多少？」, LLM directly fabricates a number to answer
+- User asks 「帮我推荐裤子」, LLM directly recommends products
+- User asks 「现在最便宜的」, LLM fabricates real-time prices
 
-This is disastrous in the normalization stage: the responsibility of normalization is to **understand the input**, not to **answer the question**.
+This is disastrous in the normalization stage. The responsibility of normalization is to **understand the input**, not to **answer the question**.
 
-### Solution: Explicit "Can Do / Cannot Do" List
+### The Explicit Can-Do / Cannot-Do List
+
+The solution is surprisingly simple. Give the LLM an explicit list of what it can and cannot do.
 
 | Can Do (8 items) | Cannot Do (8 prohibitions) |
 |------------------|---------------------------|
@@ -224,23 +227,23 @@ This is disastrous in the normalization stage: the responsibility of normalizati
 | Determine if clarification needed | Do not guess low-confidence content |
 | Determine if search needed | Do not fabricate real-time information |
 
-**Principle**: Explicit lists are the simplest and most effective constraint method. Vague role descriptions (like "you are an assistant") are insufficient to constrain LLM behavior. Lists convert implicit expectations into explicit rules, enabling auditing and regression testing.
+The principle here is that explicit lists are the simplest and most effective constraint method. Vague role descriptions like 「you are an assistant」 are insufficient to constrain LLM behavior. Lists convert implicit expectations into explicit rules, enabling auditing and regression testing.
 
 ### Implementation
 
-The responsibility boundary is injected as a hard constraint via the System Prompt, and the normalization result will **not contain** direct answers to user questions:
+The responsibility boundary is injected as a hard constraint via the System Prompt, and the normalization result will **not contain** direct answers to user questions.
 
-- **Prompt constants**: `SYSTEM_PROMPT`, `CAN_DO`, `CANNOT_DO` (`src/user_input_normalization/pre_normalization/prompts.py`)
-- **Boundary validation**: `PreNormalizer.validate_boundary()` checks for over-stepping (`normalizer.py`)
-- **Regression tests**: `tests/test_pre_normalization.py::TestResponsibilityBoundary` verifies no answering / no tool execution / no fact fabrication
+- The prompt constants are `SYSTEM_PROMPT`, `CAN_DO`, `CANNOT_DO` in `src/user_input_normalization/pre_normalization/prompts.py`
+- The boundary validation is `PreNormalizer.validate_boundary()` which checks for over-stepping in `normalizer.py`
+- Regression tests in `tests/test_pre_normalization.py::TestResponsibilityBoundary` verify no answering, no tool execution, no fact fabrication
 
 ---
 
 ## 5. Pronoun Resolution and Cross-Turn Memory
 
-### Pronoun Resolution Table as "Key Facts"
+### Pronoun Resolution Table as Key Facts
 
-Pronoun resolution is not a one-time operation-results need **cross-turn reuse**:
+Pronoun resolution is not a one-time operation. The results need cross-turn reuse.
 
 ```
 Turn 3: "第一个方案适合生产吗？" -> Resolve: 第一个方案 -> TCC方案
@@ -248,11 +251,11 @@ Turn 5: "那个 TCC 方案成本多少？" -> Direct hit by name indexing
 Turn 7: "第一个呢？" -> Reuse turn 3 resolution
 ```
 
-If re-resolved every turn: high cost, potential inconsistency, poor user experience.
+If you re-resolve every turn, you get high cost, potential inconsistency, and poor user experience. Nobody wants that.
 
 ### Implementation
 
-Resolution results are returned via the `pronoun_resolutions` field of the API response, and are automatically reused across turns under the same `session_id`:
+Resolution results are returned via the `pronoun_resolutions` field of the API response, and are automatically reused across turns under the same `session_id`.
 
 ```json
 {
@@ -268,11 +271,11 @@ Resolution results are returned via the `pronoun_resolutions` field of the API r
 }
 ```
 
-- **API response field**: `pronoun_resolutions` (see [API Reference - pronoun_resolutions item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#pronoun_resolutions-item-structure))
-- **Data model**: `PronounResolution` (`src/user_input_normalization/models.py`)
-- **Cross-turn storage**: `KeyFactStore.find_pronoun_resolution()` (`src/user_input_normalization/storage/base.py`)
-- **Write logic**: `PreNormalizer._write_pronoun_facts()` (`normalizer.py`)
-- **Cross-turn reuse tests**: `tests/test_pre_normalization.py::TestCrossTurnReuse`
+- The API response field is `pronoun_resolutions` (see [API Reference - pronoun_resolutions item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#pronoun_resolutions-item-structure))
+- The data model is `PronounResolution` in `src/user_input_normalization/models.py`
+- Cross-turn storage uses `KeyFactStore.find_pronoun_resolution()` in `src/user_input_normalization/storage/base.py`
+- The write logic is `PreNormalizer._write_pronoun_facts()` in `normalizer.py`
+- Cross-turn reuse tests are in `tests/test_pre_normalization.py::TestCrossTurnReuse`
 
 ---
 
@@ -280,27 +283,27 @@ Resolution results are returned via the `pronoun_resolutions` field of the API r
 
 ### The Problem with Ordinal References
 
-If the Agent outputs "方案一、方案二、方案三" and the user later references "第二个", the LLM is **prone to reference errors** during inference: ordinals have no semantics, and LLM attention may misalign.
+If the Agent outputs 「方案一、方案二、方案三」 and the user later references 「第二个」, the LLM is prone to reference errors during inference. Ordinals have no semantics, and LLM attention may misalign.
 
-### Advantages of Semantic Naming
+### The Advantages of Semantic Naming
 
-If the Agent outputs "TCC方案、轻量方案、企业方案" and the user references "TCC方案": name-based indexing has higher match accuracy, lower cognitive load, and avoids inference errors.
+Now consider this. If the Agent outputs 「TCC方案、轻量方案、企业方案」 and the user references 「TCC方案」, name-based indexing has higher match accuracy, lower cognitive load, and avoids inference errors.
 
-**Principle**: This is the "rectification of names" concept-if names are not correct, language cannot flow; if language cannot flow, things cannot be done. Ordinals are weak identifiers; semantic names are strong identifiers.
+This connects to the ancient concept of the rectification of names. If names are not correct, language cannot flow. If language cannot flow, things cannot be done. Ordinals are weak identifiers. Semantic names are strong identifiers.
 
 ### Implementation
 
-- **API response field**: `pronoun_resolutions[].named_entity` (semantic name)
-- **Naming logic**: `PreNormalizer._ensure_named_entities()` (`normalizer.py`)
-- **Named indexing tests**: `tests/test_pre_normalization.py::TestPronounResolution::test_named_entity_set`
+- The API response field is `pronoun_resolutions[].named_entity`, the semantic name
+- The naming logic is `PreNormalizer._ensure_named_entities()` in `normalizer.py`
+- Named indexing tests are in `tests/test_pre_normalization.py::TestPronounResolution::test_named_entity_set`
 
 ---
 
 ## 7. Clarification Mechanism: Handling Uncertainty
 
-### Why Can't "Guess"
+### Why Guessing Doesn't Work
 
-Error accumulation is a real risk: Turn 1 guesses wrong -> Turn 2 continues reasoning based on the wrong result -> final answer completely deviates.
+Error accumulation is a real risk. Turn 1 guesses wrong. Turn 2 continues reasoning based on the wrong result. The final answer completely deviates. By the time you notice, the damage is done.
 
 ### Confidence Threshold Mechanism
 
@@ -309,11 +312,11 @@ Confidence >= 0.6 -> Resolve directly
 Confidence < 0.6  -> Trigger clarification, ask user
 ```
 
-**Principle**: This is "better to not answer than to answer wrong." The threshold θ_clarify is configurable (default 0.6), balancing efficiency and accuracy.
+The principle is simple, better to not answer than to answer wrong. The threshold θ_clarify is configurable, defaulting to 0.6, balancing efficiency and accuracy.
 
 ### Implementation
 
-When `paused_for_clarification` is `true`, the response contains a `clarification` object, and the client should pause processing and present the clarification question to the user:
+When `paused_for_clarification` is `true`, the response contains a `clarification` object, and the client should pause processing and present the clarification question to the user.
 
 ```json
 {
@@ -328,10 +331,10 @@ When `paused_for_clarification` is `true`, the response contains a `clarificatio
 }
 ```
 
-- **API response fields**: `paused_for_clarification`, `clarification` (see [API Reference - clarification structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#clarification-structure-when-paused_for_clarification-is-true))
-- **Handler**: `ClarificationHandler` (`src/user_input_normalization/clarification/handler.py`)
-- **Config items**: `theta_clarify=0.6`, `max_consecutive_clarifications=3` (`src/user_input_normalization/config.py`)
-- **Resume entry**: `NormalizationPipeline.resume_after_clarification()` (`pipeline.py`)
+- The API response fields are `paused_for_clarification` and `clarification` (see [API Reference - clarification structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#clarification-structure-when-paused_for_clarification-is-true))
+- The handler is `ClarificationHandler` in `src/user_input_normalization/clarification/handler.py`
+- The config items are `theta_clarify=0.6` and `max_consecutive_clarifications=3` in `src/user_input_normalization/config.py`
+- The resume entry is `NormalizationPipeline.resume_after_clarification()` in `pipeline.py`
 
 ---
 
@@ -339,47 +342,47 @@ When `paused_for_clarification` is `true`, the response contains a `clarificatio
 
 ### Problem Scenario
 
-Before a holiday, the user asks the Agent to recommend a travel destination. The Agent recommends Jiming Temple (鸡鸣寺) for cherry blossoms. After the holiday, the user inputs: "你上次推荐的看樱花的那个地方……"
+Here's a scenario that sounds simple but is genuinely hard. Before a holiday, the user asks the Agent to recommend a travel destination. The Agent recommends Jiming Temple (鸡鸣寺) for cherry blossoms. After the holiday, the user inputs, 「你上次推荐的看樱花的那个地方……」
 
-Challenges: long time span (short-term memory has expired) + attribute anaphora ("看樱花的" is an attribute modifier).
+The challenges stack up. Long time span means short-term memory has expired. Attribute anaphora means 「看樱花的」 is an attribute modifier, not a direct reference.
 
 ### Two-Step Inference + Compensation Mechanism
 
-1. **Attribute extraction + vector search**: Extract ["樱花", "旅游"], search historical dialogue store to recall details
-2. **LLM inference**: Infer based on window content => "鸡鸣寺"
-3. **Compensation mechanism** (when search fails): Extract attributes to issue tool calls, then re-reason
+1. **Attribute extraction + vector search**. Extract ["樱花", "旅游"], search historical dialogue store to recall details
+2. **LLM inference**. Infer based on window content, which gives us 「鸡鸣寺」
+3. **Compensation mechanism** when search fails. Extract attributes to issue tool calls, then re-reason
 
 ### Implementation
 
-Attribute retrieval resolution is automatically triggered in the pipeline (when an attribute anaphora pattern is detected), and resolution results are written back to `pronoun_resolutions`:
+Attribute retrieval resolution is automatically triggered in the pipeline when an attribute anaphora pattern is detected, and resolution results are written back to `pronoun_resolutions`.
 
-- **Resolver**: `AttributeResolver` (`src/user_input_normalization/attribute_resolution/resolver.py`)
-- **Two-step inference**: `AttributeResolver.resolve()` -> `extract_attributes()` -> `recall_details()` -> `infer()`
-- **Compensation mechanism**: `AttributeResolver.compensation()` (simulated tool call + re-reasoning)
-- **Trigger condition**: `NormalizationPipeline._is_attribute_anaphora()` detects attribute anaphora patterns
-- **Tests**: `tests/test_attribute_resolution.py::TestJimingTempleCase` (Jiming Temple end-to-end case)
+- The resolver is `AttributeResolver` in `src/user_input_normalization/attribute_resolution/resolver.py`
+- The two-step inference flow is `AttributeResolver.resolve()` then `extract_attributes()` then `recall_details()` then `infer()`
+- The compensation mechanism is `AttributeResolver.compensation()` which simulates a tool call and re-reasoning
+- The trigger condition is `NormalizationPipeline._is_attribute_anaphora()` which detects attribute anaphora patterns
+- Tests are in `tests/test_attribute_resolution.py::TestJimingTempleCase`, the Jiming Temple end-to-end case
 
 ---
 
 ## 9. Vocabulary Table Self-Evolution: Emergent Knowledge
 
-### Problem
+### The Problem
 
-The same word/abbreviation has different meanings in different industries, domains, and contexts. Manually maintaining vocabulary tables is unrealistic-new words constantly emerge.
+The same word or abbreviation has different meanings in different industries, domains, and contexts. Manually maintaining vocabulary tables is unrealistic. New words constantly emerge, and you can't keep up.
 
-### Self-Iteration Mechanism
+### The Self-Iteration Mechanism
 
 ```
 Online dialogue -> Offline analysis -> Mark candidate terms -> Threshold check -> Promote to vocab table
 ```
 
-**Threshold rules**: Total count > 100 / Discussant count > 3 (public vocabulary) / Consecutive discussion > 10
+The threshold rules are designed to ensure stability. Total count > 100. Discussant count > 3 for public vocabulary. Consecutive discussion > 10.
 
-**Principle**: This is "emergent knowledge"-the vocabulary table emerges bottom-up from actual dialogue, threshold filtering ensures stability, and human review serves as a backstop.
+This is emergent knowledge. The vocabulary table emerges bottom-up from actual dialogue. Threshold filtering ensures stability, and human review serves as a backstop.
 
 ### Implementation
 
-Term standardization results are returned via the `term_mappings` field of the API response:
+Term standardization results are returned via the `term_mappings` field of the API response.
 
 ```json
 {
@@ -389,23 +392,23 @@ Term standardization results are returned via the `term_mappings` field of the A
 }
 ```
 
-- **API response field**: `term_mappings` (see [API Reference - term_mappings item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#term_mappings-item-structure))
-- **Vocabulary service**: `VocabularyTable` (`src/user_input_normalization/vocabulary/table.py`)
-- **Offline analyzer**: `OfflineAnalyzer` (`src/user_input_normalization/vocabulary/offline_analyzer.py`)
-- **Storage interface**: `VocabStore` (`src/user_input_normalization/storage/base.py`)
-- **Config items**: `min_total_count=100`, `min_discussant_count=3`, `min_consecutive_count=10` (`config.py`)
+- The API response field is `term_mappings` (see [API Reference - term_mappings item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#term_mappings-item-structure))
+- The vocabulary service is `VocabularyTable` in `src/user_input_normalization/vocabulary/table.py`
+- The offline analyzer is `OfflineAnalyzer` in `src/user_input_normalization/vocabulary/offline_analyzer.py`
+- The storage interface is `VocabStore` in `src/user_input_normalization/storage/base.py`
+- The config items are `min_total_count=100`, `min_discussant_count=3`, `min_consecutive_count=10` in `config.py`
 
 ---
 
 ## 10. Adjective Quantification: From Subjective to Objective
 
-### Problem
+### The Problem
 
-Any unquantified adjective causes Agent output drift. Many Agents handle this crudely: "性价比高" directly equals "low price," ignoring quality, performance, brand, and after-sales.
+Any unquantified adjective causes Agent output drift. Many Agents handle this crudely. 「性价比高」 directly equals 「low price」, ignoring quality, performance, brand, and after-sales. That kind of simplification leads to terrible recommendations.
 
 ### Quantification Strategies
 
-"性价比" has two reasonable interpretations:
+「性价比」 has two reasonable interpretations, and both are valid.
 
 | Strategy | Meaning | Tool Parameters |
 |----------|---------|-----------------|
@@ -414,7 +417,7 @@ Any unquantified adjective causes Agent output drift. Many Agents handle this cr
 
 ### Implementation
 
-Quantification results are returned via the `quantifiable_adjectives` field of the API response, and the request must include `observation` (e.g. current price) to complete quantification:
+Quantification results are returned via the `quantifiable_adjectives` field of the API response, and the request must include `observation` (like current price) to complete quantification.
 
 ```bash
 curl -X POST http://localhost:8000/normalize \
@@ -436,19 +439,19 @@ curl -X POST http://localhost:8000/normalize \
 }
 ```
 
-- **API request field**: `observation` (passes current price and other context to trigger deep-stage quantification)
-- **API response field**: `quantifiable_adjectives` (see [API Reference - quantifiable_adjectives item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#quantifiable_adjectives-item-structure))
-- **Quantification engine**: `QuantificationEngine` (`src/user_input_normalization/quantification/engine.py`)
-- **Built-in rules**: `DEFAULT_RULES` (6 rules: 性价比, 划算, 再高级一点, etc.) (`quantification/rules.py`)
-- **Deep normalization**: `DeepNormalizer.quantify_adjectives()` (`deep_normalization/normalizer.py`)
+- The API request field is `observation`, which passes current price and other context to trigger deep-stage quantification
+- The API response field is `quantifiable_adjectives` (see [API Reference - quantifiable_adjectives item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#quantifiable_adjectives-item-structure))
+- The quantification engine is `QuantificationEngine` in `src/user_input_normalization/quantification/engine.py`
+- Built-in rules are in `DEFAULT_RULES` with 6 rules covering 性价比, 划算, 再高级一点, and more, in `quantification/rules.py`
+- Deep normalization uses `DeepNormalizer.quantify_adjectives()` in `deep_normalization/normalizer.py`
 
 ---
 
 ## 11. Three-Layer Context Integration
 
-### Core Idea
+### The Core Idea
 
-> All normalization measures can be summarized in one sentence: deeply integrate context.
+> All normalization measures can be summarized in one sentence, deeply integrate context.
 
 | Layer | Content | Source | Purpose |
 |-------|---------|--------|---------|
@@ -458,21 +461,21 @@ curl -X POST http://localhost:8000/normalize \
 
 ### Implementation
 
-The three-layer context is automatically assembled inside `PreNormalizer.normalize()`, associated via `user_id` and `session_id`:
+The three-layer context is automatically assembled inside `PreNormalizer.normalize()`, associated via `user_id` and `session_id`.
 
-- **Integrator**: `ContextIntegrator.assemble()` (`src/user_input_normalization/context/integrator.py`)
-- **Context model**: `ContextBundle` (user_profile + key_facts + dialogue_summary + recalled_details)
-- **Priority conflict**: `ContextIntegrator.resolve_conflict()` (Key Facts > User Profile > Dialogue History)
-- **Storage interfaces**: `UserProfileStore`, `KeyFactStore`, `DialogueHistoryStore` (`storage/base.py`)
-- **Observability**: `ContextIntegrator.explain_influence()` returns an influence report for each layer
+- The integrator is `ContextIntegrator.assemble()` in `src/user_input_normalization/context/integrator.py`
+- The context model is `ContextBundle` with user_profile, key_facts, dialogue_summary, and recalled_details
+- Priority conflict resolution uses `ContextIntegrator.resolve_conflict()` with the order Key Facts > User Profile > Dialogue History
+- The storage interfaces are `UserProfileStore`, `KeyFactStore`, `DialogueHistoryStore` in `storage/base.py`
+- For observability, `ContextIntegrator.explain_influence()` returns an influence report for each layer
 
 ---
 
 ## 12. Completeness Check: The Gatekeeper
 
-### Why Check Is Needed
+### Why a Check Is Needed
 
-Normalization is not "call the LLM once and done"-the LLM may miss things: incomplete subject-predicate-object, unresolved pronouns, unquantified adjectives.
+Normalization is not 「call the LLM once and done.」 The LLM may miss things. Incomplete subject-predicate-object. Unresolved pronouns. Unquantified adjectives. You need a gatekeeper.
 
 ### Three Checks + Routing
 
@@ -484,20 +487,20 @@ Unquantified adjectives -> Route to deep-normalization (stage_reached: "deep")
 
 ### Implementation
 
-Check results affect the `stage_reached` and `paused_for_clarification` fields of the API response:
+Check results affect the `stage_reached` and `paused_for_clarification` fields of the API response.
 
-- **Checker**: `CompletenessChecker` (`src/user_input_normalization/pre_normalization/completeness_checker.py`)
-- **Check method**: `check_and_route()` returns `(check_result, route_target, route_reason)`
-- **Check items**: `spo_complete` (SPO), `pronouns_resolved` (pronouns), `adjectives_quantified` (adjectives)
-- **API impact**: Unquantified adjectives -> `stage_reached: "deep"`; unresolved pronouns -> `paused_for_clarification: true`
+- The checker is `CompletenessChecker` in `src/user_input_normalization/pre_normalization/completeness_checker.py`
+- The check method is `check_and_route()` which returns `(check_result, route_target, route_reason)`
+- The check items are `spo_complete` for SPO, `pronouns_resolved` for pronouns, `adjectives_quantified` for adjectives
+- The API impact is that unquantified adjectives route to `stage_reached: "deep"`, and unresolved pronouns trigger `paused_for_clarification: true`
 
 ---
 
 ## 13. Few-Shot Retrieval Injection: Economics and Feedback Loop
 
-### Problem
+### The Problem
 
-Few-shot examples significantly improve normalization quality, but injecting all examples would overflow the context window.
+Few-shot examples significantly improve normalization quality. But injecting all examples would overflow the context window. You need to be selective.
 
 ### Retrieval Injection + Online Sinking
 
@@ -506,37 +509,37 @@ User input -> Vectorize -> Search top-k similar examples -> Inject into Prompt
 Online encounters strange input -> Successfully resolved -> Organize as few-shot example -> Save to library -> Next similar input can reference
 ```
 
-**Principle**: This is a "data flywheel"-the longer the system runs, the richer the example library, and the higher the normalization quality.
+This is a data flywheel. The longer the system runs, the richer the example library, and the higher the normalization quality. It gets smarter with use.
 
 ### Implementation
 
-Few-shot injection is automatically executed inside `PreNormalizer.normalize()`, transparent to API callers:
+Few-shot injection is automatically executed inside `PreNormalizer.normalize()`, transparent to API callers.
 
-- **Example storage**: `FewShotStore` (`src/user_input_normalization/storage/base.py`)
-- **Retrieval injection**: `PreNormalizer._build_user_prompt()` calls `FewShotStore.search(top_k=3)`
-- **Online sinking**: `PreNormalizer._sink_to_fewshot()` automatically saves strange inputs to the library
-- **Formatting**: `format_fewshot()` (`pre_normalization/prompts.py`)
-- **Config items**: `top_k=3`, `enabled=True` (`config.py`)
+- The example storage is `FewShotStore` in `src/user_input_normalization/storage/base.py`
+- The retrieval injection is `PreNormalizer._build_user_prompt()` which calls `FewShotStore.search(top_k=3)`
+- Online sinking uses `PreNormalizer._sink_to_fewshot()` which automatically saves strange inputs to the library
+- The formatting function is `format_fewshot()` in `pre_normalization/prompts.py`
+- The config items are `top_k=3` and `enabled=True` in `config.py`
 
 ---
 
 ## Summary
 
-The core ideas of user input normalization (Module 1) can be summarized as:
+The core ideas of user input normalization, Module 1, can be boiled down to a few key insights.
 
-1. **Deeply integrate context** - all measures revolve around this one sentence
-2. **Two-stage division of labor** - what can be solved immediately goes to pre; what needs tools goes to deep
-3. **Explicit constraints** - responsibility boundaries, completeness checks, clarification thresholds prevent LLM over-stepping and guessing
-4. **Structured output** - resolution tables, SPO, quantification fields enable downstream programmatic consumption
-5. **Self-evolution** - vocabulary table iteration, few-shot sinking make the system smarter with use
+1. **Deeply integrate context**. All measures revolve around this one sentence.
+2. **Two-stage division of labor**. What can be solved immediately goes to pre. What needs tools goes to deep.
+3. **Explicit constraints**. Responsibility boundaries, completeness checks, clarification thresholds prevent LLM over-stepping and guessing.
+4. **Structured output**. Resolution tables, SPO, quantification fields enable downstream programmatic consumption.
+5. **Self-evolution**. Vocabulary table iteration, few-shot sinking make the system smarter with use.
 
-The core ideas of three-layer intent recognition (Module 2) can be summarized as:
+Coming back to Module 2, the core ideas of three-layer intent recognition are equally clear.
 
-1. **Waterfall escalation** - start cheap and fast, escalate only when needed (Code → Flash → Pro)
-2. **Multi-signal confidence** - never trust LLM self-reported confidence alone; fuse with rule match, vector similarity, historical accuracy
-3. **Slot filling as part of recognition** - intent + parameters + constraints are one structured output, not separate stages
-4. **Dual exits for uncertainty** - unsupported intent is rejected with reason; unclear intent triggers a bounded clarification loop
-5. **Closed-loop evaluation** - test set + next-turn implicit signals feed back into metrics for continuous improvement
+1. **Waterfall escalation**. Start cheap and fast, escalate only when needed, from Code to Flash to Pro.
+2. **Multi-signal confidence**. Never trust LLM self-reported confidence alone. Fuse with rule match, vector similarity, historical accuracy.
+3. **Slot filling as part of recognition**. Intent plus parameters plus constraints are one structured output, not separate stages.
+4. **Dual exits for uncertainty**. Unsupported intent is rejected with reason. Unclear intent triggers a bounded clarification loop.
+5. **Closed-loop evaluation**. Test set plus next-turn implicit signals feed back into metrics for continuous improvement.
 
 ### Principle-to-Interface Mapping Table
 
@@ -580,25 +583,27 @@ The core ideas of three-layer intent recognition (Module 2) can be summarized as
 
 ### The Interview Question
 
-When asked "how do you do intent recognition in your Agent?" many candidates answer "call a big model to classify." In engineering this is wrong for three reasons:
+When asked 「how do you do intent recognition in your Agent?」 many candidates answer 「call a big model to classify.」 In engineering, this is wrong for three reasons.
 
-1. **Cost and latency**: A single deep reasoning call can take 5-15 seconds. Most user inputs ("continue", "next", "refund") are unambiguous and don't need it.
-2. **Confidence is not a probability**: LLM self-reported `confidence` is a "self-judgment score," not a calibrated probability. Treating it as ground truth leads to over-acceptance of wrong answers.
-3. **No dual exits**: A single LLM call produces one answer. Engineering needs explicit handling for "unsupported" (intent not in candidate list) and "unclear" (low confidence or missing required slots) — two distinct failure modes.
+1. **Cost and latency**. A single deep reasoning call can take 5-15 seconds. Most user inputs like 「continue」, 「next」, 「refund」 are unambiguous and don't need it.
+2. **Confidence is not a probability**. LLM self-reported `confidence` is a self-judgment score, not a calibrated probability. Treating it as ground truth leads to over-acceptance of wrong answers.
+3. **No dual exits**. A single LLM call produces one answer. Engineering needs explicit handling for 「unsupported」 (intent not in candidate list) and 「unclear」 (low confidence or missing required slots). These are two distinct failure modes.
 
 ### Implementation
 
-The framework introduces a three-layer waterfall that addresses all three concerns:
+The framework introduces a three-layer waterfall that addresses all three concerns.
 
-- **Service entry**: `POST /recognize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#4-post-recognize--intent-recognition))
-- **Orchestrator**: `IntentRecognitionPipeline` (`src/intent_recognition/pipeline.py`)
-- **Design decisions**: D1 (waterfall), D2 (independent stage), D10 (dual exits)
+- The service entry is `POST /recognize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#4-post-recognize--intent-recognition))
+- The orchestrator is `IntentRecognitionPipeline` in `src/intent_recognition/pipeline.py`
+- The design decisions are D1 (waterfall), D2 (independent stage), D10 (dual exits)
 
 ---
 
 ## 15. Three-Layer Waterfall Architecture
 
 ### The Cascade
+
+This is where the architecture gets elegant. Instead of one big call, you cascade through three layers, escalating only when the previous layer can't handle it.
 
 ```
 Normalized Input -> [L1 Code Layer] --miss--> [L2 Lightweight LLM] --low conf--> [L3 Deep LLM]
@@ -610,27 +615,27 @@ Normalized Input -> [L1 Code Layer] --miss--> [L2 Lightweight LLM] --low conf-->
                                           IntentRecognitionResult
 ```
 
-**Layer 1 - Code Layer** (D3): Three recognition methods — page guidance (UI event → intent), keyword/regex matching, rule engine (context state + normalized input). Returns first match or "unmatched" signal. **Zero LLM calls, < 10ms.**
+**Layer 1, Code Layer** (D3) has three recognition methods. Page guidance maps UI events to intents. Keyword and regex matching catches explicit patterns. The rule engine combines context state with normalized input. It returns the first match or an 「unmatched」 signal. **Zero LLM calls, under 10ms.**
 
-**Layer 2 - Lightweight LLM** (D4, D5): Flash/Mini model with structured prompt (candidate intents + slots + few-shot). Confidence routing: `>=0.85` accept, `0.6-0.85` clarify, `<0.6` escalate to L3.
+**Layer 2, Lightweight LLM** (D4, D5) uses a Flash or Mini model with a structured prompt containing candidate intents, slots, and few-shot examples. Confidence routing sends `>=0.85` to accept, `0.6-0.85` to clarify, and `<0.6` to escalate to L3.
 
-**Layer 3 - Deep LLM** (D6): Deep reasoning model for 5 complex scenarios — complex expressions (病句/倒装), cross-turn context dependency, intent switching, multi-intent decomposition, implicit info completion.
+**Layer 3, Deep LLM** (D6) is the deep reasoning model for 5 complex scenarios. Complex expressions like 病句 and 倒装. Cross-turn context dependency. Intent switching. Multi-intent decomposition. Implicit info completion.
 
 ### Why Waterfall, Not Parallel
 
-Parallel execution of all three layers would 3× API cost, and Flash model confidence vs. Pro model confidence are not directly comparable. The waterfall escalates only on miss or low-confidence, so most requests stop at L1 or L2.
+Parallel execution of all three layers would cost 3× the API calls, and Flash model confidence versus Pro model confidence are not directly comparable. The waterfall escalates only on miss or low-confidence, so most requests stop at L1 or L2. It's economics and accuracy working together.
 
 ### Graceful Degradation
 
-If L3 fails (timeout, API error), the pipeline falls back to the L2 result with a warning log, rather than failing the whole request.
+If L3 fails, maybe a timeout or API error, the pipeline falls back to the L2 result with a warning log rather than failing the whole request. The user still gets an answer, just not the deepest one.
 
 ### Implementation
 
-- **L1 Code Layer**: `src/intent_recognition/code_layer/` (`classifier.py`, `page_guidance.py`, `keyword_matcher.py`, `rule_engine.py`)
-- **L2 Lightweight LLM**: `src/intent_recognition/lightweight_llm/` (`classifier.py`, `confidence_router.py`, `multi_signal.py`, `prompts.py`)
-- **L3 Deep LLM**: `src/intent_recognition/deep_llm/` (`classifier.py`, `prompts.py`)
-- **Orchestrator**: `IntentRecognitionPipeline.recognize()` (`src/intent_recognition/pipeline.py`)
-- **Config flags**: `enable_code_layer`, `enable_lightweight_llm`, `enable_deep_llm` (`src/intent_recognition/config.py`)
+- L1 Code Layer lives in `src/intent_recognition/code_layer/` with `classifier.py`, `page_guidance.py`, `keyword_matcher.py`, `rule_engine.py`
+- L2 Lightweight LLM lives in `src/intent_recognition/lightweight_llm/` with `classifier.py`, `confidence_router.py`, `multi_signal.py`, `prompts.py`
+- L3 Deep LLM lives in `src/intent_recognition/deep_llm/` with `classifier.py`, `prompts.py`
+- The orchestrator is `IntentRecognitionPipeline.recognize()` in `src/intent_recognition/pipeline.py`
+- The config flags are `enable_code_layer`, `enable_lightweight_llm`, `enable_deep_llm` in `src/intent_recognition/config.py`
 
 ---
 
@@ -638,14 +643,16 @@ If L3 fails (timeout, API error), the pipeline falls back to the L2 result with 
 
 ### The Problem with LLM Confidence
 
-LLM self-reported confidence is a "self-judgment score" — it reflects the model's internal certainty, not a calibrated probability. Two failure modes:
+Here's something that took me a while to appreciate. LLM self-reported confidence is a self-judgment score. It reflects the model's internal certainty, not a calibrated probability. Two failure modes result from this.
 
-- **Over-confident on wrong answers**: Model says 0.9 confidence on a misclassified intent
-- **Under-confident on right answers**: Model says 0.5 on a correct intent, triggering unnecessary escalation
+- **Over-confident on wrong answers**. The model says 0.9 confidence on a misclassified intent.
+- **Under-confident on right answers**. The model says 0.5 on a correct intent, triggering unnecessary escalation.
+
+You can't just trust the number. You need more signals.
 
 ### Multi-Signal Fusion (D5)
 
-The framework fuses four signals:
+The framework fuses four signals to produce a more reliable confidence score.
 
 | Signal | Weight | Source |
 |--------|--------|--------|
@@ -654,17 +661,17 @@ The framework fuses four signals:
 | Vector similarity | 0.2 | Embedding similarity to positive examples |
 | Historical accuracy | 0.1 | Per-intent accuracy from evaluation store |
 
-The fused confidence is then routed:
+The fused confidence is then routed through three thresholds.
 
-- `>= 0.85` → accept
-- `>= 0.6 and < 0.85` → clarify (ask user)
-- `< 0.6` → escalate to L3
+- `>= 0.85` means accept
+- `>= 0.6 and < 0.85` means clarify, ask the user
+- `< 0.6` means escalate to L3
 
 ### Implementation
 
-- **Confidence router**: `ConfidenceRouter` (`src/intent_recognition/lightweight_llm/confidence_router.py`)
-- **Multi-signal fusion**: `MultiSignalFuser` (`src/intent_recognition/lightweight_llm/multi_signal.py`)
-- **Config**: `ConfidenceConfig` (`src/intent_recognition/config.py`) — `accept_threshold=0.85`, `clarify_threshold=0.6`, weight fields
+- The confidence router is `ConfidenceRouter` in `src/intent_recognition/lightweight_llm/confidence_router.py`
+- The multi-signal fusion is `MultiSignalFuser` in `src/intent_recognition/lightweight_llm/multi_signal.py`
+- The config is `ConfidenceConfig` in `src/intent_recognition/config.py` with `accept_threshold=0.85`, `clarify_threshold=0.6`, and the weight fields
 
 ---
 
@@ -672,20 +679,20 @@ The fused confidence is then routed:
 
 ### Slot Filling as Part of Recognition (D7)
 
-Intent recognition is not just "what intent" — it's "what intent + what parameters + what constraints." Slot filling is integrated into the recognition pipeline, not a separate stage.
+Intent recognition is not just 「what intent.」 It's 「what intent plus what parameters plus what constraints.」 Slot filling is integrated into the recognition pipeline, not a separate stage. This was a deliberate design choice.
 
 ### Hard vs Soft Constraints (D8)
 
 | Constraint Type | Examples | Semantics |
 |----------------|----------|-----------|
-| Hard | "不超过3000", "必须华为", "不要二手" | Must satisfy; filter results |
-| Soft | "最好轻薄", "优先蓝色", "续航越长越好" | Best effort; sort or boost |
+| Hard | 「不超过3000」, 「必须华为」, 「不要二手」 | Must satisfy, filter results |
+| Soft | 「最好轻薄」, 「优先蓝色」, 「续航越长越好」 | Best effort, sort or boost |
 
-The framework uses regex patterns for common Chinese constraint expressions, falling back to LLM extraction for complex cases. Constraints are returned as normalized expressions (e.g., `price<=3000`) plus raw text for traceability.
+The framework uses regex patterns for common Chinese constraint expressions, falling back to LLM extraction for complex cases. Constraints are returned as normalized expressions like `price<=3000` plus raw text for traceability.
 
 ### Cross-Turn Accumulation (D9)
 
-In a ReAct/TAO loop, users iteratively refine their request across turns:
+In a ReAct/TAO loop, users iteratively refine their request across turns. This is natural conversation behavior.
 
 ```
 Turn 1: "帮我推荐一款3000元以内的手机"  -> {category: 手机, budget_max: 3000}
@@ -693,17 +700,17 @@ Turn 2: "预算可以到4000"                -> {category: 手机, budget_max: 4
 Turn 3: "最好是华为"                    -> {category: 手机, budget_max: 4000, brand: 华为}  (accumulate)
 ```
 
-**Latest-wins strategy**: When the same slot appears in a new turn, the new value overwrites the old. Conflict is recorded for debugging.
+The **latest-wins strategy** means when the same slot appears in a new turn, the new value overwrites the old. Conflicts are recorded for debugging.
 
-**Constraint accumulation**: Constraints don't overwrite — unique expressions are appended. `has_constraint_conflict()` detects contradictory hard constraints (e.g., `price<100` vs `price>200`).
+**Constraint accumulation** works differently. Constraints don't overwrite. Unique expressions are appended. The `has_constraint_conflict()` function detects contradictory hard constraints, like `price<100` versus `price>200`.
 
 ### Implementation
 
-- **Slot extractor**: `SlotExtractor` (`src/intent_recognition/slot_filling/extractor.py`)
-- **Constraint extractor**: `ConstraintExtractor` (`src/intent_recognition/slot_filling/constraints.py`)
-- **Cross-turn merger**: `CrossTurnSlotMerger` (`src/intent_recognition/slot_filling/cross_turn.py`)
-- **Slot state store**: `SlotStateStore` (`src/intent_recognition/storage/base.py`, memory impl in `memory.py`)
-- **API fields**: `slots`, `missing_slots`, `hard_constraints`, `soft_constraints`
+- The slot extractor is `SlotExtractor` in `src/intent_recognition/slot_filling/extractor.py`
+- The constraint extractor is `ConstraintExtractor` in `src/intent_recognition/slot_filling/constraints.py`
+- The cross-turn merger is `CrossTurnSlotMerger` in `src/intent_recognition/slot_filling/cross_turn.py`
+- The slot state store is `SlotStateStore` in `src/intent_recognition/storage/base.py`, with memory impl in `memory.py`
+- The API fields are `slots`, `missing_slots`, `hard_constraints`, `soft_constraints`
 
 ---
 
@@ -716,28 +723,28 @@ Turn 3: "最好是华为"                    -> {category: 手机, budget_max: 4
 | Unsupported (拒识) | Intent not in candidate list | `rejection_reason` with supported intents listed |
 | Unclear (澄清) | Low confidence OR missing required slots | `clarification_question` to ask user |
 
-A single "I don't know" answer conflates these two — the user can't tell whether to rephrase (unsupported) or provide more info (unclear).
+A single 「I don't know」 answer conflates these two. The user can't tell whether to rephrase (unsupported) or provide more info (unclear). That's terrible UX.
 
-### Rejection: Tell User What IS Supported
+### Rejection Tells the User What IS Supported
 
-When the intent is not in the candidate list, the rejection reason includes:
+When the intent is not in the candidate list, the rejection reason includes three things.
 
-1. The unsupported content (echoed back)
+1. The unsupported content, echoed back
 2. The list of supported intents with descriptions and positive examples
-3. The redirect hints from negative examples (e.g., `"iPhone 16的电池容量是多少 -> product_query"`)
+3. The redirect hints from negative examples, like `"iPhone 16的电池容量是多少 -> product_query"`
 
-### Clarification: Bounded Loop with Convergence Tracking
+### Clarification Has a Bounded Loop with Convergence Tracking
 
-Clarification is not infinite. The framework tracks consecutive clarifications per session:
+Clarification is not infinite. The framework tracks consecutive clarifications per session.
 
-- After `max_consecutive_clarifications` (default 3), the system degrades to "best guess" mode — accepts the highest-confidence candidate rather than asking again.
-- If the user's next turn resolves the clarification (e.g., provides the missing slot), the consecutive counter resets.
+- After `max_consecutive_clarifications` (default 3), the system degrades to 「best guess」 mode. It accepts the highest-confidence candidate rather than asking again.
+- If the user's next turn resolves the clarification, like providing the missing slot, the consecutive counter resets.
 
 ### Implementation
 
-- **Handler**: `RejectionClarificationHandler` (`src/intent_recognition/rejection_clarification/handler.py`)
-- **Config**: `ClarificationConfig.max_consecutive_clarifications=3` (`src/intent_recognition/config.py`)
-- **API fields**: `rejection_reason`, `need_clarification`, `clarification_question`
+- The handler is `RejectionClarificationHandler` in `src/intent_recognition/rejection_clarification/handler.py`
+- The config is `ClarificationConfig.max_consecutive_clarifications=3` in `src/intent_recognition/config.py`
+- The API fields are `rejection_reason`, `need_clarification`, `clarification_question`
 
 ---
 
@@ -745,36 +752,36 @@ Clarification is not infinite. The framework tracks consecutive clarifications p
 
 ### The Problem with Explicit Feedback
 
-Asking users "did I get that right?" after every intent recognition is terrible UX. Most users won't answer, and those who do are biased toward reporting errors, not successes.
+Asking users 「did I get that right?」 after every intent recognition is terrible UX. Most users won't answer. Those who do are biased toward reporting errors, not successes. You get skewed data and annoyed users.
 
 ### Implicit Signal Detection (D11)
 
-The framework detects failure signals in the **next turn's input**:
+The framework detects failure signals in the **next turn's input**. No extra UI needed.
 
 ```
 Turn N: "帮我推荐手机"  -> intent: product_recommendation
 Turn N+1: "你理解错了，我要查订单"  -> failure signal detected for Turn N
 ```
 
-Default failure signals: `"你理解错了"`, `"不是这个意思"`, `"不是，我不是"`, `"不对，我要的是"`.
+Default failure signals are 「你理解错了」, 「不是这个意思」, 「不是，我不是」, and 「不对，我要的是」.
 
-When a failure signal is detected:
+When a failure signal is detected, two things happen.
 
 1. The previous turn's intent is marked as incorrect in the evaluation store
-2. The current turn's intent is recognized fresh (the failure signal often contains the correct intent)
+2. The current turn's intent is recognized fresh, since the failure signal often contains the correct intent
 
 ### Convergence Tracking
 
-For clarification loops, the framework tracks whether the user's task progressed after clarification:
+For clarification loops, the framework tracks whether the user's task progressed after clarification.
 
-- **Resolved**: Next turn's input is a normal request (not a failure signal, not another clarification) → reset consecutive counter
-- **Unresolved**: Next turn's input is another clarification response → increment consecutive counter
+- **Resolved** means the next turn's input is a normal request, not a failure signal or another clarification. The consecutive counter resets.
+- **Unresolved** means the next turn's input is another clarification response. The consecutive counter increments.
 
 ### Implementation
 
-- **Failure signal detection**: `RejectionClarificationHandler.detect_implicit_failure()` (`src/intent_recognition/rejection_clarification/handler.py`)
-- **Config**: `IntentRecognitionConfig.failure_signals` (`src/intent_recognition/config.py`)
-- **Evaluation store**: `EvaluationStore` (`src/intent_recognition/storage/base.py`)
+- The failure signal detection is `RejectionClarificationHandler.detect_implicit_failure()` in `src/intent_recognition/rejection_clarification/handler.py`
+- The config is `IntentRecognitionConfig.failure_signals` in `src/intent_recognition/config.py`
+- The evaluation store is `EvaluationStore` in `src/intent_recognition/storage/base.py`
 
 ---
 
@@ -782,27 +789,27 @@ For clarification loops, the framework tracks whether the user's task progressed
 
 ### The Boundary Problem
 
-Intents overlap. "iPhone 16的电池容量是多少" could be `product_query` (query specs) or `product_recommendation` (suggest based on battery). Without explicit boundaries, the LLM will guess inconsistently.
+Intents overlap. 「iPhone 16的电池容量是多少」 could be `product_query` (query specs) or `product_recommendation` (suggest based on battery). Without explicit boundaries, the LLM will guess inconsistently. One day it picks one, the next day the other.
 
 ### Positive + Negative Examples (D12)
 
-Each `IntentDefinition` includes:
+Each `IntentDefinition` includes two types of examples.
 
-- **Positive examples**: Inputs that definitely belong to this intent
-- **Negative examples**: Inputs that look similar but belong to a different intent, with redirect target (e.g., `"3000以内有什么手机推荐 -> product_recommendation"`)
+- **Positive examples** are inputs that definitely belong to this intent
+- **Negative examples** are inputs that look similar but belong to a different intent, with a redirect target, like `"3000以内有什么手机推荐 -> product_recommendation"`
 
-These are injected into the L2 prompt to define boundaries.
+These are injected into the L2 prompt to define boundaries. It's like teaching a child the difference between a cat and a dog by showing examples of each, including the tricky cases.
 
 ### Few-Shot Retrieval Injection
 
-For confusing intent pairs, the framework retrieves the top-k most similar historical examples (from `FewShotStore`) and injects them into the prompt. This is the same mechanism as Module 1's few-shot injection (section 13), reused across modules.
+For confusing intent pairs, the framework retrieves the top-k most similar historical examples from `FewShotStore` and injects them into the prompt. This is the same mechanism as Module 1's few-shot injection (section 13), reused across modules.
 
 ### Implementation
 
-- **Intent registry**: `IntentRegistry` (`src/intent_recognition/intent_registry.py`) — stores `IntentDefinition` with positive/negative examples
-- **Prompt builder**: `build_prompt()` in `lightweight_llm/prompts.py` — injects candidate intents, slots, boundaries, few-shot
-- **Few-shot store**: `FewShotStore` (shared with Module 1, `src/user_input_normalization/storage/base.py`)
-- **Config**: `fewshot_top_k=3`, `fewshot_enabled=True` (`src/intent_recognition/config.py`)
+- The intent registry is `IntentRegistry` in `src/intent_recognition/intent_registry.py`, storing `IntentDefinition` with positive and negative examples
+- The prompt builder is `build_prompt()` in `lightweight_llm/prompts.py`, injecting candidate intents, slots, boundaries, and few-shot
+- The few-shot store is shared with Module 1 in `src/user_input_normalization/storage/base.py`
+- The config is `fewshot_top_k=3` and `fewshot_enabled=True` in `src/intent_recognition/config.py`
 
 ---
 
@@ -810,33 +817,33 @@ For confusing intent pairs, the framework retrieves the top-k most similar histo
 
 ### The Context Window Problem
 
-When the intent space grows beyond ~20 intents, listing all of them in the LLM prompt overflows the context window and degrades accuracy.
+When the intent space grows beyond roughly 20 intents, listing all of them in the LLM prompt overflows the context window and degrades accuracy. The LLM gets confused by too many options.
 
 ### Hierarchical Dispatch (D13)
 
-The framework supports parent/child intent relationships:
+The framework supports parent and child intent relationships.
 
 ```python
 IntentDefinition(name="refund", parent_intent="order_query", ...)
 ```
 
-When hierarchical dispatch is enabled:
+When hierarchical dispatch is enabled, the flow changes.
 
-1. L1/L2 first recognizes the parent intent (e.g., `order_query`)
-2. The candidate list is narrowed to children of `order_query` (e.g., `refund`, `exchange`, `cancel`)
+1. L1/L2 first recognizes the parent intent, like `order_query`
+2. The candidate list narrows to children of `order_query`, like `refund`, `exchange`, `cancel`
 3. L1/L2 runs again on the narrowed list
 
-This turns a flat 100-intent problem into two 10-intent problems.
+This turns a flat 100-intent problem into two 10-intent problems. Much more manageable.
 
 ### When to Enable
 
-Hierarchical dispatch is **off by default** (`enable_hierarchical=False`) because it adds latency (two recognition passes). Enable it only when the intent space is large enough to hurt L2 accuracy.
+Hierarchical dispatch is **off by default** (`enable_hierarchical=False`) because it adds latency from two recognition passes. Enable it only when the intent space is large enough to hurt L2 accuracy.
 
 ### Implementation
 
-- **Intent registry**: `IntentRegistry` (`src/intent_recognition/intent_registry.py`) — `parent_intent` field, `get_children()` method
-- **Config flag**: `enable_hierarchical` (`src/intent_recognition/config.py`)
-- **Default intents**: The server's `_build_default_registry()` in `server.py` registers `refund` as a child of `order_query`
+- The intent registry is `IntentRegistry` in `src/intent_recognition/intent_registry.py` with the `parent_intent` field and `get_children()` method
+- The config flag is `enable_hierarchical` in `src/intent_recognition/config.py`
+- The default intents are registered in the server's `_build_default_registry()` in `server.py`, where `refund` is a child of `order_query`
 
 ---
 
@@ -853,12 +860,12 @@ Hierarchical dispatch is **off by default** (`enable_hierarchical=False`) becaus
 
 ### Benchmark Targets
 
-- **Domain-specific Agent**: 0.99 (the framework's target market)
-- **General Agent**: 0.85 (baseline)
+- **Domain-specific Agent** targets 0.99, which is the framework's target market
+- **General Agent** targets 0.85 as a baseline
 
 ### 9-Scenario Test Set (D16)
 
-The framework includes a built-in test set covering 9 scenario types:
+The framework includes a built-in test set covering 9 scenario types.
 
 1. Clear/simple intent (L1/L2 hit)
 2. Complex expression (L3 needed)
@@ -872,98 +879,116 @@ The framework includes a built-in test set covering 9 scenario types:
 
 ### Implementation
 
-- **Metrics calculator**: `MetricsCalculator` (`src/intent_recognition/evaluation/metrics.py`)
-- **Test set**: `TestSet` (`src/intent_recognition/evaluation/test_set.py`) — 9 scenario types, sample cases
-- **Test runner**: `TestRunner` (`src/intent_recognition/evaluation/runner.py`) — runs test set against pipeline, generates report
-- **Config**: `EvaluationConfig` (`src/intent_recognition/config.py`) — `top_k=3`, benchmark targets
+- The metrics calculator is `MetricsCalculator` in `src/intent_recognition/evaluation/metrics.py`
+- The test set is `TestSet` in `src/intent_recognition/evaluation/test_set.py` with 9 scenario types and sample cases
+- The test runner is `TestRunner` in `src/intent_recognition/evaluation/runner.py`, which runs the test set against the pipeline and generates a report
+- The config is `EvaluationConfig` in `src/intent_recognition/config.py` with `top_k=3` and benchmark targets
 
 ---
 
 ## Accuracy Improvements (D17-D25)
 
-The following optional capabilities (all default OFF) address five types of intent recognition accuracy problems identified in production. Each can be enabled via config or per-request override flags on `POST /agent/intent`.
+The following optional capabilities, all default OFF, address five types of intent recognition accuracy problems identified in production. Each can be enabled via config or per-request override flags on `POST /agent/intent`.
+
+These are the extensions we built after shipping the three-layer waterfall and watching it hit real-world edge cases. Each one solves a specific problem we encountered, and each one was designed to be independently toggleable so you only pay for what you need.
 
 ### Problem-Solution Mapping (D25)
 
 | Problem | Solution | Config |
 |---------|----------|--------|
-| Large intent space → L2 confusion | D17: Retrieval-based candidate narrowing | `retrieval.enable` |
-| Static few-shot insufficient | D18: Dynamic few-shot injection | `dynamic_fewshot.dynamic_enabled` |
-| Intent boundary overlap | D19: Intent orthogonality check | `orthogonality.enable_check` |
-| Pseudo multi-intent (process descriptions) | D20: True multi-intent decomposition | `multi_intent.enable` |
-| Code layer misses (no keyword match) | D21: Vector matching fallback | `vector_fallback.enable` |
-| Unnecessary re-recognition on same task | D22: Intent reuse with rollback | `reuse_strategy.enable` |
-| Single recognizer uncertainty | D23: Multi-recognizer arbiter | `arbiter.enable` |
-| Need for domain-specific model | D24: Fine-tuning integration point | `fine_tuning.enable` |
+| Large intent space causes L2 confusion | D17, Retrieval-based candidate narrowing | `retrieval.enable` |
+| Static few-shot insufficient | D18, Dynamic few-shot injection | `dynamic_fewshot.dynamic_enabled` |
+| Intent boundary overlap | D19, Intent orthogonality check | `orthogonality.enable_check` |
+| Pseudo multi-intent (process descriptions) | D20, True multi-intent decomposition | `multi_intent.enable` |
+| Code layer misses (no keyword match) | D21, Vector matching fallback | `vector_fallback.enable` |
+| Unnecessary re-recognition on same task | D22, Intent reuse with rollback | `reuse_strategy.enable` |
+| Single recognizer uncertainty | D23, Multi-recognizer arbiter | `arbiter.enable` |
+| Need for domain-specific model | D24, Fine-tuning integration point | `fine_tuning.enable` |
 
 ### D17: Retrieval-based Candidate Narrowing
 
-Before Layer 2 LLM classification, retrieve Top-N candidate intents using vector similarity, LLM coarse classification, or hybrid retrieval. Dynamic N adjusts based on context (large intent space → more candidates; small → fewer).
+Imagine walking into a restaurant with a 200-item menu. You'd be paralyzed. But if the waiter says, 「based on what you've said, here are 5 dishes you might like,」 suddenly choosing is easy. D17 does exactly this for the LLM.
 
-- **Config**: `RetrievalConfig(enable=False, method="vector"|"llm_coarse"|"hybrid", top_n=10, dynamic_n=True)`
-- **Per-request override**: `enable_retrieval: true|false` on `POST /agent/intent` and `POST /recognize`
-- **Implementation**: `src/intent_recognition/lightweight_llm/candidate_retriever.py`
+Before Layer 2 sends the candidate list to the LLM, it narrows the field to Top-N using vector similarity, LLM coarse classification, or a hybrid approach. The N is dynamic too, more candidates when the intent space is large, fewer when it's small. This prevents the LLM from getting confused by too many options and improves accuracy significantly.
+
+- The config is `RetrievalConfig(enable=False, method="vector"|"llm_coarse"|"hybrid", top_n=10, dynamic_n=True)`
+- The per-request override is `enable_retrieval: true|false` on `POST /agent/intent` and `POST /recognize`
+- The implementation is in `src/intent_recognition/lightweight_llm/candidate_retriever.py`
 
 ### D18: Dynamic Few-Shot Injection
 
-Injects dynamically retrieved historical examples (similar to current input) alongside static few-shot examples. Uses Jaccard token overlap to find similar past inputs from `FewShotStore`.
+Static few-shot examples are like a teacher who always uses the same examples regardless of what the student is struggling with. It works, but it's not optimal. D18 changes this by dynamically retrieving historical examples that are most similar to the current input.
 
-- **Config**: `DynamicFewShotConfig(dynamic_enabled=False, dynamic_top_k=3, static_kind_tag="static")`
-- **Implementation**: `src/intent_recognition/lightweight_llm/dynamic_fewshot.py`
+The mechanism uses Jaccard token overlap to find relevant past inputs from the `FewShotStore`. So if the user asks about refund policies, the few-shot examples will be about refunds, not about product recommendations. The right example at the right time makes a big difference.
+
+- The config is `DynamicFewShotConfig(dynamic_enabled=False, dynamic_top_k=3, static_kind_tag="static")`
+- The implementation is in `src/intent_recognition/lightweight_llm/dynamic_fewshot.py`
 
 ### D19: Intent Orthogonality Check
 
-Detects overlap between intent definitions (similarity > threshold) and provides `split_intent()` / `merge_with_param()` operations to maintain a clean, orthogonal intent space.
+When two intent definitions overlap too much, the LLM will flip-flop between them. It's like having two buttons that do almost the same thing. Users can never remember which one to press, and neither can the LLM.
 
-- **Config**: `OrthogonalityConfig(enable_check=False, overlap_threshold=0.7)`
-- **Implementation**: `IntentRegistry.detect_overlap()`, `split_intent()`, `merge_with_param()` in `src/intent_recognition/intent_registry.py`
+D19 detects this overlap using a similarity threshold and provides `split_intent()` and `merge_with_param()` operations to maintain a clean, orthogonal intent space. Keep your intents orthogonal, and classification accuracy goes up automatically.
+
+- The config is `OrthogonalityConfig(enable_check=False, overlap_threshold=0.7)`
+- The implementation uses `IntentRegistry.detect_overlap()`, `split_intent()`, and `merge_with_param()` in `src/intent_recognition/intent_registry.py`
 
 ### D20: True Multi-Intent Decomposition
 
-Distinguishes true multi-intent requests from process descriptions (e.g., "recommend a phone and then check out"). Returns dependency relations between sub-intents and a topologically sorted pending list.
+There's a huge difference between 「recommend a phone and then check out」 and 「recommend a phone and book a flight.」 The first is a process description, a single intent with multiple steps. The second is a true multi-intent request, two independent goals that each trigger a different business flow.
 
-- **Config**: `MultiIntentConfig(enable=True, sequential_execution=True, filter_process_description=True)`
-- **Response fields**: `relations: [{src, dst, constraints}]`, `pending_intents: ["intent_a", "intent_b"]`
-- **Implementation**: `src/intent_recognition/deep_llm/classifier.py` (parsing + topological sort)
+D20 knows the difference. It filters out process descriptions, identifies true multi-intent requests, and returns dependency relations between sub-intents along with a topologically sorted pending list. This prevents the system from treating every 「and」 sentence as multi-intent, which would create unnecessary complexity.
+
+- The config is `MultiIntentConfig(enable=True, sequential_execution=True, filter_process_description=True)`
+- The response fields are `relations: [{src, dst, constraints}]` and `pending_intents: ["intent_a", "intent_b"]`
+- The implementation is in `src/intent_recognition/deep_llm/classifier.py` with parsing and topological sort
 
 ### D21: Vector Matching Fallback
 
-When Layer 1 code-layer misses (no keyword/regex/rule match), falls back to vector similarity matching against a `VectorMatchStore`. Uses a 128-dim hashing vectorizer (pure Python, no numpy dependency) with cosine similarity.
+Sometimes the user says something that means the same thing but uses completely different words. The keyword matcher misses it. The regex doesn't catch it. But the meaning is the same.
 
-- **Config**: `VectorFallbackConfig(enable=False, similarity_threshold=0.92, top_k=1)`
-- **Per-request override**: `enable_vector_fallback: true|false`
-- **Implementation**: `src/intent_recognition/code_layer/vector_matcher.py`
-- **Source value**: `"vector-fallback"` in the `source` response field
+D21 adds a vector matching fallback to the code layer. It uses a 128-dim hashing vectorizer, pure Python with no numpy dependency, and computes cosine similarity against a pre-built `VectorMatchStore`. When the similarity exceeds the threshold, it catches what the keyword matcher missed. This is one of my favorite mechanisms because it adds semantic understanding to the fastest layer without any LLM calls.
+
+- The config is `VectorFallbackConfig(enable=False, similarity_threshold=0.92, top_k=1)`
+- The per-request override is `enable_vector_fallback: true|false`
+- The implementation is in `src/intent_recognition/code_layer/vector_matcher.py`
+- The source value is `"vector-fallback"` in the `source` response field
 
 ### D22: Intent Reuse with Rollback
 
-When the user continues the same task across turns, reuses the previous turn's intent directly (confidence=1.0, source="reused"), skipping the entire waterfall. Rolls back on implicit failure signals (D11) or intent-switch markers.
+If the user said 「recommend a phone」 in turn 1 and 「make it cheaper」 in turn 2, they're still talking about phone recommendation. There's no need to re-run the entire waterfall.
 
-- **Config**: `ReuseStrategyConfig(enable=False, rollback_on_failure_signal=True, rollback_on_tool_failure_count=3)`
-- **Per-request override**: `reuse_previous_intent: true|false`
-- **Intent switch markers**: `"换个话题"`, `"不是这个"`, `"我要问别的"`, `"切换"`, `"换一个"`, `"不是说这个"`, `"我想问的是"`
-- **Implementation**: `src/intent_recognition/intent_reuse_strategy.py`
-- **Source value**: `"reused"` in the `source` response field
+D22 reuses the previous turn's intent directly, with confidence 1.0 and source marked as 「reused.」 But here's the clever part. It rolls back when it detects failure signals (D11) or intent-switch markers like 「换个话题」 or 「不是这个.」 So it's fast when the user is continuing the same task, and smart enough to know when they've switched.
+
+- The config is `ReuseStrategyConfig(enable=False, rollback_on_failure_signal=True, rollback_on_tool_failure_count=3)`
+- The per-request override is `reuse_previous_intent: true|false`
+- The intent switch markers are 「换个话题」, 「不是这个」, 「我要问别的」, 「切换」, 「换一个」, 「不是说这个」, and 「我想问的是」
+- The implementation is in `src/intent_recognition/intent_reuse_strategy.py`
+- The source value is `"reused"` in the `source` response field
 
 ### D23: Multi-Recognizer Arbiter
 
-Runs multiple recognizers (vector, rule, lightweight LLM) in parallel and arbitrates via vote (majority) or weighted_score (configurable weights). Useful when a single recognizer is uncertain.
+When one doctor isn't sure, you get a second opinion. D23 does the same thing for intent recognition. It runs multiple recognizers in parallel, vector, rule, lightweight LLM, and arbitrates via vote (majority wins) or weighted_score (configurable weights per recognizer).
 
-- **Config**: `ArbiterConfig(enable=False, mode="vote"|"weighted_score", recognizers=["vector","rule","lightweight_llm"], weights={"vector":0.8,"rule":0.6,"lightweight_llm":1.0})`
-- **Implementation**: `src/intent_recognition/multi_recognizer_arbiter.py`
-- **Source values**: `"arbiter-vote"` or `"arbiter-weighted"`
+This is useful when a single recognizer is uncertain and you want cross-validation before committing to an intent. The extra cost is worth it for high-stakes classifications.
+
+- The config is `ArbiterConfig(enable=False, mode="vote"|"weighted_score", recognizers=["vector","rule","lightweight_llm"], weights={"vector":0.8,"rule":0.6,"lightweight_llm":1.0})`
+- The implementation is in `src/intent_recognition/multi_recognizer_arbiter.py`
+- The source values are `"arbiter-vote"` or `"arbiter-weighted"`
 
 ### D24: Fine-Tuning Integration Point
 
-Provides a training data export pipeline (JSONL format) and a `model_tier="fine_tuned"` LLM client tier that reads the `FINE_TUNED_MODEL` env var. Design-only — no actual training is performed; the exported data can be used to fine-tune a domain-specific model externally.
+This one is about leaving the door open. D24 provides a training data export pipeline in JSONL format and a `model_tier="fine_tuned"` LLM client tier. It doesn't actually train a model. It collects the data, exports it, and when you're ready to fine-tune a domain-specific model externally, the infrastructure is already there.
 
-- **Config**: `FineTuningConfig(enable=False, model=None)`
-- **Implementation**: `src/intent_recognition/training_data_exporter.py`, `evaluate_fine_tuned()` in evaluation runner
-- **Env var**: `FINE_TUNED_MODEL` for the fine-tuned model name
+The exported data can be used with any fine-tuning pipeline. Think of it as building the runway before you build the plane.
+
+- The config is `FineTuningConfig(enable=False, model=None)`
+- The implementation is in `src/intent_recognition/training_data_exporter.py` and `evaluate_fine_tuned()` in the evaluation runner
+- The env var is `FINE_TUNED_MODEL` for the fine-tuned model name
 
 ### Per-Request Override Pattern
 
-All D17/D21/D22 capabilities support per-request override via the `POST /agent/intent` and `POST /recognize` request body:
+All D17, D21, and D22 capabilities support per-request override via the `POST /agent/intent` and `POST /recognize` request body.
 
 | Field | Type | Default | Effect |
 |-------|------|---------|--------|
@@ -975,65 +1000,50 @@ Overrides are applied to a snapshot of the pipeline config and restored after th
 
 ### Accuracy Presets
 
-The `accuracy_preset` config field (`"balanced"` by default) provides a shorthand for enabling multiple capabilities at once. Available presets:
-- `"balanced"` (default): all D17-D24 OFF, rely on the three-layer waterfall
-- `"high_accuracy"`: enable D17 + D21 + D22 for maximum accuracy (higher cost)
-- `"low_cost"`: all OFF (same as balanced, explicit)
+The `accuracy_preset` config field (`"balanced"` by default) provides a shorthand for enabling multiple capabilities at once. Available presets are as follows.
+
+- `"balanced"` (default) means all D17-D24 are OFF, rely on the three-layer waterfall
+- `"high_accuracy"` means enable D17 + D21 + D22 for maximum accuracy, at higher cost
+- `"low_cost"` means all OFF, same as balanced but explicit
 
 ## Interview Insights (D26-D31)
 
-Six design decisions distilled from intent-recognition interview materials
-(resume framing, post-class exercises, reuse templates). They complement
-D1-D25 with evidence grading, a strict sub-task boundary, five-factor
-routing arbitration, extended evaluation metrics, a solution-evolution
-methodology, and a unified structured-output protocol. All six default
-ON because they are additive (they enrich output without changing
-existing behavior).
+Six design decisions distilled from intent-recognition interview materials, resume framing, post-class exercises, and reuse templates. They complement D1-D25 with evidence grading, a strict sub-task boundary, five-factor routing arbitration, extended evaluation metrics, a solution-evolution methodology, and a unified structured-output protocol.
+
+All six default ON because they are additive. They enrich output without changing existing behavior. Think of them as the polish layer that takes the system from functional to interview-ready.
 
 ### D26: Evidence Grading
 
-Every slot value and fact is tagged with an evidence grade:
+Here's something I find genuinely elegant. Not all slot values are equally trustworthy. 「The user just said their budget is 3000」 is a fact. 「The user's profile says they usually spend 3000」 is a guess. D26 tags every slot value with an evidence grade.
 
-- **`verified`** — sourced from the current input, the active context, or
-  a confirmed `KeyFact`. Hard operations (refund, payment) may proceed.
-- **`provisional`** — sourced from history, user profile, speculation, or
-  a default value. Hard operations must either upgrade the evidence
-  (user confirmation / observation check) or disclose the assumption.
+- **`verified`** means the value is sourced from the current input, the active context, or a confirmed `KeyFact`. Hard operations like refunds and payments may proceed.
+- **`provisional`** means the value is sourced from history, user profile, speculation, or a default value. Hard operations must either upgrade the evidence through user confirmation or observation check, or disclose the assumption.
 
-The pipeline collects evidence via `_collect_evidence()`, upgrades
-provisional evidence via `_upgrade_provisional_to_verified()`, and
-enforces the hard-op check via `_check_hard_op_evidence()` when
-`evidence.require_verified_for_hard_ops=True` and the intent is in
-`evidence.high_risk_intents`.
+And here's the key design decision. Once a value is tagged `verified`, it stays `verified`. You cannot downgrade it. This prevents provisional noise from overwriting confirmed facts. The upgrade path is one-way, and that's intentional.
 
-- **Config**: `EvidenceConfig(enable_grading=True, require_verified_for_hard_ops=True, high_risk_intents=[])`
-- **Implementation**: `IntentRecognitionPipeline._collect_evidence()` / `_upgrade_provisional_to_verified()` / `_check_hard_op_evidence()` in `src/intent_recognition/pipeline.py`
-- **Models**: `Evidence`, `EvidenceGrade`, `SlotValue` in `src/intent_recognition/models.py`
+The pipeline collects evidence via `_collect_evidence()`, upgrades provisional evidence via `_upgrade_provisional_to_verified()`, and enforces the hard-op check via `_check_hard_op_evidence()` when `evidence.require_verified_for_hard_ops=True` and the intent is in `evidence.high_risk_intents`.
+
+- The config is `EvidenceConfig(enable_grading=True, require_verified_for_hard_ops=True, high_risk_intents=[])`
+- The implementation is in `IntentRecognitionPipeline._collect_evidence()` / `_upgrade_provisional_to_verified()` / `_check_hard_op_evidence()` in `src/intent_recognition/pipeline.py`
+- The models are `Evidence`, `EvidenceGrade`, and `SlotValue` in `src/intent_recognition/models.py`
 
 ### D27: sub_tasks vs independent_intents Boundary
 
-**The job of an intent is to select a business flow.** Only goals that
-independently trigger *different* business flows are `independent_intents`;
-intra-flow steps (price comparison, delivery check, parameter lookup) are
-`sub_tasks`, slots, or constraints.
+The job of an intent is to select a business flow. This is a subtle but important distinction that took me a while to fully appreciate.
 
-- `independent_intents` enter D20 multi-intent governance (process
-  filtering, `relations`, `pending_intents`, sequential execution).
-- `sub_tasks` are recorded as execution steps within the main flow and
-  do **NOT** enter `relations`, `pending_intents`, or process filtering.
+Comparing prices is a step within shopping, not a separate intent. It doesn't trigger a different business flow. Booking a flight IS a separate intent because it triggers a different business flow. D27 draws this line clearly.
 
-The deep LLM prompt (rules 6-10) and the lightweight LLM
-(`detect_boundary_simple()` with `_SUB_TASK_PATTERNS` /
-`_INDEPENDENT_MARKERS`) both enforce this boundary.
+- `independent_intents` enter D20 multi-intent governance, including process filtering, `relations`, `pending_intents`, and sequential execution.
+- `sub_tasks` are recorded as execution steps within the main flow and do **NOT** enter `relations`, `pending_intents`, or process filtering.
 
-- **Config**: `BoundaryConfig(enable_sub_tasks=True, strict_mode=False)`
-- **Implementation**: `src/intent_recognition/deep_llm/prompts.py` (rules 6-10), `src/intent_recognition/deep_llm/classifier.py`, `src/intent_recognition/lightweight_llm/classifier.py`
+The deep LLM prompt (rules 6-10) and the lightweight LLM (`detect_boundary_simple()` with `_SUB_TASK_PATTERNS` / `_INDEPENDENT_MARKERS`) both enforce this boundary. Two layers of defense, making sure the distinction holds.
+
+- The config is `BoundaryConfig(enable_sub_tasks=True, strict_mode=False)`
+- The implementation is in `src/intent_recognition/deep_llm/prompts.py` (rules 6-10), `src/intent_recognition/deep_llm/classifier.py`, and `src/intent_recognition/lightweight_llm/classifier.py`
 
 ### D28: Five-Factor Routing Arbitration
 
-Confidence is a **signal**, not a probability. When L2 confidence falls
-in the ambiguous zone `[clarify_threshold, accept_threshold)`, the
-five-factor arbitration runs in priority order:
+Confidence is a **signal**, not a probability. I can't stress this enough. When L2 confidence falls in the ambiguous zone between `clarify_threshold` and `accept_threshold`, you need more information before making a routing decision. D28 checks five factors in strict priority order.
 
 | # | Factor | Fail action |
 |---|--------|-------------|
@@ -1043,21 +1053,19 @@ five-factor arbitration runs in priority order:
 | 4 | Candidate gap (Top1-Top2 < threshold) | Escalate to L3 |
 | 5 | Confidence + historical accuracy | Clarify if history poor and adjusted conf < accept |
 
-The first failing factor that mandates Clarify/Escalate wins. Factor 5
-reuses the D5 multi-signal fusion score; it does not replace it.
+The first failing factor that mandates Clarify or Escalate wins. Factor 5 reuses the D5 multi-signal fusion score, it does not replace it.
 
-For L2/L3 disagreement, `arbitrate_l2_l3()` applies: L3 high-confidence +
-complete slots → accept L3; both below clarify threshold → force Clarify;
-otherwise run five-factor on L3.
+The priority order matters. Slot completeness must be checked before risk, otherwise a high-risk intent with missing slots would produce a confusing risk-related reason instead of the actionable 「missing required slots」 reason. Getting the order right is the difference between a helpful clarification and a confusing one.
 
-- **Config**: `ArbitrationConfig(enable_five_factor=True, candidate_gap_threshold=0.1, risk_aware_clarify=True, high_risk_intents=[])`
-- **Implementation**: `src/intent_recognition/lightweight_llm/confidence_router.py` (`ArbitrationInput`, `ArbitrationDecision`, `arbitrate()`, `arbitrate_l2_l3()`)
-- **Output**: `arbitration_breakdown` field on `IntentRecognitionResult` (separate from `signals` which is `dict[str, float]`)
+For L2/L3 disagreement, `arbitrate_l2_l3()` applies the following logic. L3 high-confidence plus complete slots means accept L3. Both below clarify threshold means force Clarify. Otherwise, run five-factor on L3.
+
+- The config is `ArbitrationConfig(enable_five_factor=True, candidate_gap_threshold=0.1, risk_aware_clarify=True, high_risk_intents=[])`
+- The implementation is in `src/intent_recognition/lightweight_llm/confidence_router.py` with `ArbitrationInput`, `ArbitrationDecision`, `arbitrate()`, and `arbitrate_l2_l3()`
+- The output lives in the `arbitration_breakdown` field on `IntentRecognitionResult`, separate from `signals` which is typed as `dict[str, float]`
 
 ### D29: Extended Evaluation Metrics
 
-Beyond the D15 4-tier metrics, D29 adds 9 fine-grained metrics plus an
-online-feedback loop:
+You can't improve what you can't measure. D29 goes beyond the D15 4-tier metrics with 9 fine-grained metrics plus an online feedback loop.
 
 | Metric | Method | What it measures |
 |--------|--------|------------------|
@@ -1070,17 +1078,14 @@ online-feedback loop:
 | Constraint identification | `compute_constraint_identification_rate()` | `correct_constraints / total_constraints` |
 | State update accuracy | `compute_state_update_accuracy()` | Multi-turn slot update correctness |
 
-**Online feedback loop**: `TestSet.import_online_samples()` feeds
-production failures (collected via `TestRunner.collect_online_failures()`
-using D11 failure signals) back into the offline test set.
+But the really cool part is the online feedback loop. Production failures collected via D11 failure signals get fed back into the offline test set through `TestSet.import_online_samples()`. The system literally learns from its mistakes in production and gets better over time.
 
-- **Config**: `ExtendedEvaluationConfig` toggles each metric
-- **Implementation**: `src/intent_recognition/evaluation/metrics.py`, `src/intent_recognition/evaluation/test_set.py`, `src/intent_recognition/evaluation/runner.py`
+- The config uses `ExtendedEvaluationConfig` which toggles each metric
+- The implementation is in `src/intent_recognition/evaluation/metrics.py`, `src/intent_recognition/evaluation/test_set.py`, and `src/intent_recognition/evaluation/runner.py`
 
 ### D30: Solution Evolution Methodology
 
-The framework evolves through three stages, each addressing the
-accuracy bottlenecks of the previous one:
+This isn't just about features. It's about telling the story of how the system evolved. Each stage solved the bottlenecks of the previous one, and understanding this progression is key to communicating system maturity.
 
 | Stage | Architecture | Key mechanisms |
 |-------|-------------|----------------|
@@ -1090,29 +1095,17 @@ accuracy bottlenecks of the previous one:
 | **v1-stage3** | + D17-D24 advanced mechanisms | Retrieval, dynamic fewshot, vector fallback, reuse, arbiter, fine-tuning |
 | **v2** | + D26-D31 interview insights | Evidence grading, boundary, arbitration, extended eval, protocol |
 
-`TestRunner.assess_evolution_stage(config)` inspects the config and
-returns the current stage string. Use it to communicate maturity in
-interviews and to gate feature expectations.
+`TestRunner.assess_evolution_stage(config)` inspects the config and returns the current stage string. Use it to communicate maturity in interviews and to gate feature expectations.
 
-**60-second interview skeleton** (fill in the blanks):
+Here's a 60-second interview skeleton you can fill in as you go.
 
-> "We model intent recognition as a ___-layer waterfall: a code layer
-> for <10ms keyword/regex hits, a lightweight LLM for the ambiguous
-> middle, and a deep LLM for ___ complex scenarios. Confidence is
-> treated as a ___ (signal), so we run a five-factor ___ (arbitration)
-> before accepting. Every slot value carries an evidence ___ (grade):
-> verified or provisional; hard operations require ___ (verified)
-> evidence or must disclose assumptions. We evaluate with ___ (9)
-> metrics including a confusion matrix and online-failure feedback loop,
-> and the system evolves through v0 → v1 → v2 stages."
+> 「We model intent recognition as a ___-layer waterfall, a code layer for <10ms keyword/regex hits, a lightweight LLM for the ambiguous middle, and a deep LLM for ___ complex scenarios. Confidence is treated as a ___ (signal), so we run a five-factor ___ (arbitration) before accepting. Every slot value carries an evidence ___ (grade), verified or provisional. Hard operations require ___ (verified) evidence or must disclose assumptions. We evaluate with ___ (9) metrics including a confusion matrix and online-failure feedback loop, and the system evolves through v0 -> v1 -> v2 stages.」
 
-- **Implementation**: `src/intent_recognition/evaluation/runner.py::assess_evolution_stage()`
+- The implementation is in `src/intent_recognition/evaluation/runner.py::assess_evolution_stage()`
 
 ### D31: Structured Output Protocol
 
-A 10-field protocol serves as the handoff contract between normalization
-and intent recognition, and between intent recognition and downstream
-ReAct/TAO loops:
+When modules talk to each other, they need a shared language. D31 defines that language with a 10-field protocol that serves as the handoff contract between normalization and intent recognition, and between intent recognition and downstream ReAct/TAO loops.
 
 | # | Field | Source | Default |
 |---|-------|--------|---------|
@@ -1127,8 +1120,7 @@ ReAct/TAO loops:
 | 9 | `verified_evidence` | D26 evidence collector | `[]` |
 | 10 | `provisional_evidence` | D26 evidence collector | `[]` |
 
-`sub_intents` is kept as a **deprecated alias** of `independent_intents`
-(synced via `model_validator(mode="after")`) so old clients keep working.
+For backward compatibility, `sub_intents` is kept as a **deprecated alias** of `independent_intents`, synced via `model_validator(mode="after")` so old clients keep working. When you're ready to fully migrate, set `protocol.deprecate_sub_intents=True` to omit `sub_intents` from responses entirely.
 
-- **Config**: `ProtocolConfig(enable_structured_output=True, deprecate_sub_intents=False)`
-- **Implementation**: `AgentIntentResponse` / `AgentIntentNormalizationDetail` / `RecognizeResponse` in `src/user_input_normalization/server.py`
+- The config is `ProtocolConfig(enable_structured_output=True, deprecate_sub_intents=False)`
+- The implementation is in `AgentIntentResponse` / `AgentIntentNormalizationDetail` / `RecognizeResponse` in `src/user_input_normalization/server.py`
