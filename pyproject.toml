@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "user-input-normalization"
+version = "0.1.0"
+description = "Agent 用户输入规范化框架 - 两阶段流水线 + 深度上下文整合 + 自演进词汇表 + 可量化规则引擎"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+    "fastapi>=0.100",
+    "uvicorn>=0.23",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+]
+redis = ["redis>=5.0"]
+mysql = ["pymysql>=1.1", "sqlalchemy>=2.0"]
+vector = ["numpy>=1.24", "chromadb>=0.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
