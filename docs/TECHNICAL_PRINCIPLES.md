@@ -1,4 +1,4 @@
-# Technical Principles
+# Agent Can't Understand Humans? I Used 31 Design Decisions to Fix This
 
 > [中文技术原理文档](https://github.com/xiaoyesoso/XIntent/blob/main/docs/TECHNICAL_PRINCIPLES.zh-CN.md)
 >
@@ -10,7 +10,10 @@ The XIntent framework has two modules, each tackling a fundamental question.
 
 - **User Input Normalization** (sections 1-13) asks, *why does the Agent misunderstand what the user says?* Natural language is messy. This module cleans it up before intent recognition even runs.
 - **Three-Layer Intent Recognition** (sections 14-22) asks, *why does the Agent pick the wrong intent?* A single LLM call is neither fast enough nor reliable enough. This module uses a waterfall architecture to balance cost, speed, and accuracy.
-- **Accuracy Improvements** (D17-D25) asks, *how do you push accuracy from 85% to 99%?* Eight optional extensions, each addressing a specific failure mode we hit in production.
+- **Accuracy Improvements** (design decisions 17-25, abbreviated D17-D25) asks, *how do you push accuracy from 85% to 99%?* Eight optional extensions, each addressing a specific failure mode we hit in production.
+
+> A quick note on the numbering, D1, D2...D31 are identifiers we assigned to each design decision during development. D stands for Design Decision. They help you cross-reference between code and documentation.
+
 - **Interview Insights** (D26-D31) asks, *how do you talk about this system in an interview?* Six design decisions born from real interview feedback, covering evidence grading, boundary principles, and structured output contracts.
 
 For each principle, the **service interfaces** and **code implementations** are marked.
@@ -21,36 +24,36 @@ For each principle, the **service interfaces** and **code implementations** are 
 
 ### Module 1: User Input Normalization
 
-- [1. Problem Background: Why Agents Can't Understand User Input](#1-problem-background-why-agents-cant-understand-user-input)
-- [2. Linguistic Foundations of the Six Input Problem Categories](#2-linguistic-foundations-of-the-six-input-problem-categories)
-- [3. Two-Stage Pipeline Design Rationale](#3-two-stage-pipeline-design-rationale)
-- [4. Responsibility Boundary: Why LLMs "Over-Step"](#4-responsibility-boundary-why-llms-over-step)
-- [5. Pronoun Resolution and Cross-Turn Memory](#5-pronoun-resolution-and-cross-turn-memory)
-- [6. Named Indexing: Cognitive Load and Reference Accuracy](#6-named-indexing-cognitive-load-and-reference-accuracy)
-- [7. Clarification Mechanism: Handling Uncertainty](#7-clarification-mechanism-handling-uncertainty)
-- [8. Attribute Retrieval Resolution: RAG Long-Term Memory](#8-attribute-retrieval-resolution-rag-long-term-memory)
-- [9. Vocabulary Table Self-Evolution: Emergent Knowledge](#9-vocabulary-table-self-evolution-emergent-knowledge)
-- [10. Adjective Quantification: From Subjective to Objective](#10-adjective-quantification-from-subjective-to-objective)
-- [11. Three-Layer Context Integration](#11-three-layer-context-integration)
-- [12. Completeness Check: The Gatekeeper](#12-completeness-check-the-gatekeeper)
-- [13. Few-Shot Retrieval Injection: Economics and Feedback Loop](#13-few-shot-retrieval-injection-economics-and-feedback-loop)
+1. Problem Background: Why Agents Can't Understand User Input
+2. Linguistic Foundations of the Six Input Problem Categories
+3. Two-Stage Pipeline Design Rationale
+4. Responsibility Boundary: Why LLMs Over-Step
+5. Pronoun Resolution and Cross-Turn Memory
+6. Named Indexing: Cognitive Load and Reference Accuracy
+7. Clarification Mechanism: Handling Uncertainty
+8. Attribute Retrieval Resolution: RAG Long-Term Memory
+9. Vocabulary Table Self-Evolution: Emergent Knowledge
+10. Adjective Quantification: From Subjective to Objective
+11. Three-Layer Context Integration
+12. Completeness Check: The Gatekeeper
+13. Few-Shot Retrieval Injection: Economics and Feedback Loop
 
 ### Module 2: Three-Layer Intent Recognition
 
-- [14. Why "Just Call a Big Model" Isn't Enough](#14-why-just-call-a-big-model-isnt-enough)
-- [15. Three-Layer Waterfall Architecture](#15-three-layer-waterfall-architecture)
-- [16. Confidence Routing and Multi-Signal Fusion](#16-confidence-routing-and-multi-signal-fusion)
-- [17. Slot Filling: Hard/Soft Constraints and Cross-Turn Accumulation](#17-slot-filling-hardsoft-constraints-and-cross-turn-accumulation)
-- [18. Rejection and Clarification: Dual Exits](#18-rejection-and-clarification-dual-exits)
-- [19. Next-Turn Implicit Evaluation](#19-next-turn-implicit-evaluation)
-- [20. Intent Boundary Definition and Few-Shot Injection](#20-intent-boundary-definition-and-few-shot-injection)
-- [21. Hierarchical Intents and Decision Tree](#21-hierarchical-intents-and-decision-tree)
-- [22. Evaluation Metrics: 4-Tier System and 9-Scenario Test Set](#22-evaluation-metrics-4-tier-system-and-9-scenario-test-set)
+14. Why "Just Call a Big Model" Isn't Enough
+15. Three-Layer Waterfall Architecture
+16. Confidence Routing and Multi-Signal Fusion
+17. Slot Filling: Hard/Soft Constraints and Cross-Turn Accumulation
+18. Rejection and Clarification: Dual Exits
+19. Next-Turn Implicit Evaluation
+20. Intent Boundary Definition and Few-Shot Injection
+21. Hierarchical Intents and Decision Tree
+22. Evaluation Metrics: 4-Tier System and 9-Scenario Test Set
 
 ### Extensions
 
-- [Accuracy Improvements (D17-D25)](#accuracy-improvements-d17-d25)
-- [Interview Insights (D26-D31)](#interview-insights-d26-d31)
+- Accuracy Improvements (D17-D25): Eight Scalpels from 85% to 99%
+- Interview Insights (D26-D31): Six Decisions from Real Interview Feedback
 
 ---
 
