@@ -1,17 +1,26 @@
-# Agent Can't Understand Humans? Here's How I Fixed This
+# Agent Can't Understand Humans? I Split This Problem Into Two Modules
 
 > [中文技术原理文档](https://github.com/xiaoyesoso/XIntent/blob/main/docs/TECHNICAL_PRINCIPLES.zh-CN.md)
 >
 > Related: [HTTP API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md) | [README](https://github.com/xiaoyesoso/XIntent/blob/main/README.md)
 
-This is a technical blog, not a dry reference manual. Every design choice gets explained with real-world analogies, concrete examples, and the 「why」 behind the 「what」. If you're building an Agent and your intent recognition feels fragile, you're in the right place.
+You tell your Agent, 「show me the second one, something cheaper.」 The Agent freezes.
 
-The XIntent framework has two modules, each tackling a fundamental question.
+Which one? The second what? How much cheaper?
 
-- **User Input Normalization** asks, *why does the Agent misunderstand what the user says?* Natural language is messy. This module cleans it up before intent recognition even runs.
-- **Three-Layer Intent Recognition** asks, *why does the Agent pick the wrong intent?* A single LLM call is neither fast enough nor reliable enough. This module uses a waterfall architecture to balance cost, speed, and accuracy.
-- **Accuracy Improvements** asks, *how do you push accuracy from 85% to 99%?* Eight optional extensions, each addressing a specific failure mode we hit in production.
-- **Interview Insights** asks, *how do you talk about this system in an interview?* Six design decisions born from real interview feedback, covering evidence grading, boundary principles, and structured output contracts.
+This conversation happens every day. The user thinks they're being perfectly clear. The Agent feels like it's listening to a foreign language. And honestly, it's not the Agent's fault. Natural language is packed with pronouns, omissions, slang, and subjective judgments. Feeding raw user input directly into an LLM is like dropping a tourist who just arrived in Beijing into a conversation full of 「那个」「这玩意儿」「性价比高的」. Every word is recognizable, but the meaning is completely lost.
+
+I spent a long time on this problem, and eventually realized it's actually two problems.
+
+The first problem, the Agent doesn't understand what the user is saying. The user says 「the second one,」 and the Agent has no idea what that refers to. The user says 「something cheaper,」 and the Agent doesn't know how much cheaper. This is an input normalization problem. You need to clean up the user's input before intent recognition even runs.
+
+The second problem, the Agent doesn't know what the user wants to do. Even if the input is clean, is 「help me pick a phone」 a recommendation intent or a search intent? Should it call a tool? What parameters does it need? This is an intent recognition problem, and a single LLM call is neither fast enough nor reliable enough to handle it.
+
+XIntent is designed around these two problems. Two modules, each handling one. Input normalization runs before intent recognition, transforming casual, ambiguous, context-dependent user input into structured, machine-consumable text. The three-layer waterfall intent recognition then takes that clean input and starts from the cheapest code layer, escalating to a lightweight LLM, and only reaching the deep LLM when truly needed, balancing cost, speed, and accuracy.
+
+Later, production usage revealed more edge cases, so we added a set of optional accuracy improvement mechanisms, each targeting a specific failure mode. Then we took the system to job interviews, and the interviewers' questions helped us discover blind spots we'd never noticed, leading to six enhancements born from real interview feedback.
+
+This article walks through the entire design process. Not a reference manual, but a conversation with someone who built this system from scratch, sitting across from you, talking about why each decision was made, what pitfalls were hit, and which parts they're genuinely proud of.
 
 For each principle, the **service interfaces** and **code implementations** are marked.
 
