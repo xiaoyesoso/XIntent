@@ -860,7 +860,7 @@ The framework includes a built-in test set covering 9 scenario types.
 
 ## Accuracy Improvements
 
-The following optional capabilities, all default OFF, address five types of intent recognition accuracy problems identified in production. Each can be enabled via config or per-request override flags on `POST /agent/intent`.
+The following optional capabilities, all default OFF except multi-intent detection which defaults ON, address eight types of intent recognition accuracy problems identified in production. Each can be enabled via config or per-request override flags on `POST /agent/intent`.
 
 These are the extensions we built after shipping the three-layer waterfall and watching it hit real-world edge cases. Each one solves a specific problem we encountered, and each one was designed to be independently toggleable so you only pay for what you need.
 
@@ -1037,7 +1037,7 @@ For L2/L3 disagreement, `arbitrate_l2_l3()` applies the following logic. L3 high
 
 ### Extended Evaluation Metrics
 
-You can't improve what you can't measure. This goes beyond the 4-tier metrics with 9 fine-grained metrics plus an online feedback loop.
+You can't improve what you can't measure. This goes beyond the 4-tier metrics with 8 fine-grained metrics plus an online feedback loop.
 
 | Metric | Method | What it measures |
 |--------|--------|------------------|
