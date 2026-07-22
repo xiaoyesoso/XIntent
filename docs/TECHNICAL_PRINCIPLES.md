@@ -18,6 +18,8 @@ The second problem, the Agent doesn't know what the user wants to do. Even if th
 
 XIntent is designed around these two problems. Two modules, each handling one. Input normalization runs before intent recognition, transforming casual, ambiguous, context-dependent user input into structured, machine-consumable text. The three-layer waterfall intent recognition then takes that clean input and starts from the cheapest code layer, escalating to a lightweight LLM, and only reaching the deep LLM when truly needed, balancing cost, speed, and accuracy.
 
+The project is open source on GitHub at https://github.com/xiaoyesoso/XIntent . All code, tests, and documentation are available there.
+
 Later, production usage revealed more edge cases, so we added a set of optional accuracy improvement mechanisms, each targeting a specific failure mode. Then we took the system to job interviews, and the interviewers' questions helped us discover blind spots we'd never noticed, leading to six enhancements born from real interview feedback.
 
 This article walks through the entire design process. Not a reference manual, but a conversation with someone who built this system from scratch, sitting across from you, talking about why each decision was made, what pitfalls were hit, and which parts they're genuinely proud of.
