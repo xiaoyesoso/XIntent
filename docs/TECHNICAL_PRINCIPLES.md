@@ -1105,18 +1105,18 @@ Let's go back to where we started.
 
 You tell your Agent, 「show me the second one, something cheaper.」 The Agent freezes.
 
-Now you know why. It's not that the Agent is dumb. It's that this single sentence hides at least four problems. 「The second one」 is an ordinal reference with no semantics. 「Something cheaper」 is an unquantified adjective. 「Show me」 is a vague action verb. And the whole thing depends on context from previous turns. Each problem shifts the Agent's understanding a little. Stack four of them together, and you're completely off track.
+Now you know why. It's not that the Agent is dumb. It's that this single sentence hides at least four problems. 「The second one」 is an ordinal reference with no semantics. 「Something cheaper」 is an unquantified adjective. 「Show me」 is a vague action verb. And the whole thing depends on context from previous turns. Each problem shifts the Agent's understanding a little. **Stack four of them together, and you're completely off track.**
 
-What XIntent does is insert 「two translators」 between the user and the LLM. The first translates human language into structured, machine-consumable input. The second uses a layered waterfall strategy to figure out what the user actually wants to do. Most requests get resolved at the code layer, no LLM call needed, under 10 milliseconds. Only the genuinely complex ones escalate, layer by layer, until the deep LLM catches whatever falls through.
+What XIntent does is insert **「two translators」** between the user and the LLM. The first translates human language into structured, machine-consumable input. The second uses a layered waterfall strategy to figure out what the user actually wants to do. **Most requests get resolved at the code layer, no LLM call needed, under 10 milliseconds.** Only the genuinely complex ones escalate, layer by layer, until the deep LLM catches whatever falls through.
 
-I sometimes think about how traditional software used forms and dropdowns to constrain user input. That was a compromise, trading expressiveness for accuracy. The Agent era is different. Users can finally talk to machines the way they talk to people. But the cost is that the system now has to understand all that fuzzy, jumpy, context-dependent natural language on its own.
+I sometimes think about how traditional software used forms and dropdowns to constrain user input. That was **a compromise, trading expressiveness for accuracy**. The Agent era is different. Users can finally talk to machines the way they talk to people. But the cost is that the system now has to understand all that fuzzy, jumpy, context-dependent natural language on its own.
 
-This isn't just a technical problem. It's a generational shift.
+**This isn't just a technical problem. It's a generational shift.**
 
-The UI disappeared, and understanding was born.
+**The UI disappeared, and understanding was born.**
 
 This article covered the entire design process, from input normalization to the three-layer waterfall, from accuracy improvements to interview insights. If you're building an Agent and getting frustrated with intent recognition, check out the full code on GitHub at https://github.com/xiaoyesoso/XIntent .
 
-650 tests passing, MockLLM mode out of the box, plug in your own API key and it runs with real models.
+**650 tests passing**, MockLLM mode out of the box, plug in your own API key and it runs with real models.
 
-The code is there. The thinking is there. Take it and build.
+**The code is there. The thinking is there. Take it and build.**
