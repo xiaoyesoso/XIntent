@@ -1,10 +1,19 @@
 # Technical Principles
 
-> [中文技术原理文档](TECHNICAL_PRINCIPLES.zh-CN.md)
+> [中文技术原理文档](https://github.com/xiaoyesoso/XIntent/blob/main/docs/TECHNICAL_PRINCIPLES.zh-CN.md)
 >
-> Related: [HTTP API Reference](API.md)
+> Related: [HTTP API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md) | [README](https://github.com/xiaoyesoso/XIntent/blob/main/README.md)
 
-This document details the technical principles, design philosophy, and theoretical foundations of the XIntent framework's two modules — **user input normalization** (sections 1-13) and **three-layer intent recognition** (sections 14-22). For each principle, the **service interfaces** and **code implementations** are marked.
+This document is a **technical blog** — not a dry reference manual. Every design choice is explained with real-world analogies, concrete examples, and the "why" behind the "what". If you're building an Agent and wondering why your intent recognition feels fragile, this is the document for you.
+
+The XIntent framework has two modules, each addressing a fundamental question:
+
+- **User Input Normalization** (sections 1-13): *Why does the Agent misunderstand what the user says?* — Because natural language is messy. This module cleans it up before intent recognition even runs.
+- **Three-Layer Intent Recognition** (sections 14-22): *Why does the Agent pick the wrong intent?* — Because a single LLM call is neither fast enough nor reliable enough. This module uses a waterfall architecture to balance cost, speed, and accuracy.
+- **Accuracy Improvements** (D17-D25): *How do you push accuracy from 85% to 99%?* — Eight optional extensions, each addressing a specific failure mode.
+- **Interview Insights** (D26-D31): *How do you talk about this system in an interview?* — Six design decisions born from real interview feedback, covering evidence grading, boundary principles, and structured output contracts.
+
+For each principle, the **service interfaces** and **code implementations** are marked.
 
 ---
 
@@ -38,6 +47,11 @@ This document details the technical principles, design philosophy, and theoretic
 - [21. Hierarchical Intents and Decision Tree](#21-hierarchical-intents-and-decision-tree)
 - [22. Evaluation Metrics: 4-Tier System and 9-Scenario Test Set](#22-evaluation-metrics-4-tier-system-and-9-scenario-test-set)
 
+### Extensions
+
+- [Accuracy Improvements (D17-D25)](#accuracy-improvements-d17-d25)
+- [Interview Insights (D26-D31)](#interview-insights-d26-d31)
+
 ---
 
 ## 1. Problem Background: Why Agents Can't Understand User Input
@@ -67,7 +81,7 @@ curl -X POST http://localhost:8000/normalize \
   -d '{"raw_input": "第二个适合生产吗？", "session_id": "s1", "user_id": "u1", "turn": 2}'
 ```
 
-- **Service entry**: `POST /normalize` (see [API Reference](API.md#3-post-normalize--user-input-normalization))
+- **Service entry**: `POST /normalize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#3-post-normalize--user-input-normalization))
 - **Orchestrator**: `NormalizationPipeline` (`src/user_input_normalization/pipeline.py`)
 - **Server startup**: `python -m user_input_normalization.server` (`src/user_input_normalization/server.py`)
 
@@ -129,7 +143,7 @@ Classification results are returned via the `classification_tags` field of the A
 }
 ```
 
-- **API response field**: `classification_tags` (see [API Reference - classification_tags possible values](API.md#classification_tags-possible-values))
+- **API response field**: `classification_tags` (see [API Reference - classification_tags possible values](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#classification_tags-possible-values))
 - **Classifier**: `InputClassifier` (`src/user_input_normalization/classification/classifier.py`)
 - **Classification rules**: `CLASSIFICATION_RULES` (`src/user_input_normalization/classification/rules.py`, with 82 semantic rules + 80 known terms)
 - **Routing logic**: `SUBJECTIVE`/`EXTERNAL_FACT` -> `deep` stage; others -> `pre` stage
@@ -254,7 +268,7 @@ Resolution results are returned via the `pronoun_resolutions` field of the API r
 }
 ```
 
-- **API response field**: `pronoun_resolutions` (see [API Reference - pronoun_resolutions item structure](API.md#pronoun_resolutions-item-structure))
+- **API response field**: `pronoun_resolutions` (see [API Reference - pronoun_resolutions item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#pronoun_resolutions-item-structure))
 - **Data model**: `PronounResolution` (`src/user_input_normalization/models.py`)
 - **Cross-turn storage**: `KeyFactStore.find_pronoun_resolution()` (`src/user_input_normalization/storage/base.py`)
 - **Write logic**: `PreNormalizer._write_pronoun_facts()` (`normalizer.py`)
@@ -314,7 +328,7 @@ When `paused_for_clarification` is `true`, the response contains a `clarificatio
 }
 ```
 
-- **API response fields**: `paused_for_clarification`, `clarification` (see [API Reference - clarification structure](API.md#clarification-structure-when-paused_for_clarification-is-true))
+- **API response fields**: `paused_for_clarification`, `clarification` (see [API Reference - clarification structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#clarification-structure-when-paused_for_clarification-is-true))
 - **Handler**: `ClarificationHandler` (`src/user_input_normalization/clarification/handler.py`)
 - **Config items**: `theta_clarify=0.6`, `max_consecutive_clarifications=3` (`src/user_input_normalization/config.py`)
 - **Resume entry**: `NormalizationPipeline.resume_after_clarification()` (`pipeline.py`)
@@ -375,7 +389,7 @@ Term standardization results are returned via the `term_mappings` field of the A
 }
 ```
 
-- **API response field**: `term_mappings` (see [API Reference - term_mappings item structure](API.md#term_mappings-item-structure))
+- **API response field**: `term_mappings` (see [API Reference - term_mappings item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#term_mappings-item-structure))
 - **Vocabulary service**: `VocabularyTable` (`src/user_input_normalization/vocabulary/table.py`)
 - **Offline analyzer**: `OfflineAnalyzer` (`src/user_input_normalization/vocabulary/offline_analyzer.py`)
 - **Storage interface**: `VocabStore` (`src/user_input_normalization/storage/base.py`)
@@ -423,7 +437,7 @@ curl -X POST http://localhost:8000/normalize \
 ```
 
 - **API request field**: `observation` (passes current price and other context to trigger deep-stage quantification)
-- **API response field**: `quantifiable_adjectives` (see [API Reference - quantifiable_adjectives item structure](API.md#quantifiable_adjectives-item-structure))
+- **API response field**: `quantifiable_adjectives` (see [API Reference - quantifiable_adjectives item structure](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#quantifiable_adjectives-item-structure))
 - **Quantification engine**: `QuantificationEngine` (`src/user_input_normalization/quantification/engine.py`)
 - **Built-in rules**: `DEFAULT_RULES` (6 rules: 性价比, 划算, 再高级一点, etc.) (`quantification/rules.py`)
 - **Deep normalization**: `DeepNormalizer.quantify_adjectives()` (`deep_normalization/normalizer.py`)
@@ -576,7 +590,7 @@ When asked "how do you do intent recognition in your Agent?" many candidates ans
 
 The framework introduces a three-layer waterfall that addresses all three concerns:
 
-- **Service entry**: `POST /recognize` (see [API Reference](API.md#4-post-recognize--intent-recognition))
+- **Service entry**: `POST /recognize` (see [API Reference](https://github.com/xiaoyesoso/XIntent/blob/main/docs/API.md#4-post-recognize--intent-recognition))
 - **Orchestrator**: `IntentRecognitionPipeline` (`src/intent_recognition/pipeline.py`)
 - **Design decisions**: D1 (waterfall), D2 (independent stage), D10 (dual exits)
 
